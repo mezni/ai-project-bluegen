@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.8 | Structured LLM output | LangChain structured output + Pydantic schema integration |
 | 0.0.7 | LangChain OpenRouter client | ChatOpenAI, temperature, message tuples, LLM invoke |
 | 0.0.6 | Prompt engineering | System vs user prompts, instructions, constraints, output requirements |
 | 0.0.5 | OpenRouter LLM client | LLM APIs, API keys, models, direct client configuration |
@@ -17,6 +18,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.8] - 2026-09-18
+
+### Phase 5 — Structured LLM Output
+
+**Feature Domain:** Structured LLM output
+
+**Key Objectives:**
+
+* LangChain structured output
+* Pydantic integration
+* Output parsing
+* Validation failures
+
+### Added
+
+* `generator.py` builds a `structured_llm` via `self.llm.with_structured_output(ProjectBlueprint)`
+
+### Changed
+
+* `generator.py` `generate()` now invokes the structured LLM and returns a typed `ProjectBlueprint` (instead of raw text)
+* `app.py` prints the typed result via `blueprint.project_name` and `blueprint.business_outcome`
+* `schemas.py` tightens field descriptions: concise meaningful name, and business outcome focused on measurable value rather than technical implementation
 
 ---
 
