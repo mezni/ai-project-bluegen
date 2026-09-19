@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.22 | Typed request/response models | Input validation schemas, typed API response for the application layer |
 | 0.0.21 | File-based versioned prompts | Prompt templates on disk, config selects active version |
 | 0.0.20 | Prompt management | Dedicated PromptManager, prompt versioning, versioned telemetry |
 | 0.0.19 | Application layer | Composition root, app factory, no direct generator construction |
@@ -31,6 +32,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.22] - 2026-09-19
+
+### Typed Request/Response Models
+
+**Feature Domain:** Typed request/response models
+
+**Key Objectives:**
+
+* Validate input at the application boundary via `GenerateBlueprintRequest`
+* Return a typed `GenerateBlueprintResponse` from the application layer
+* Prepare the application interface for API/Streamlit/Web use
+
+### Added
+
+* `schemas.py` — `GenerateBlueprintRequest` (validated, whitespace-stripped project idea), `GenerateBlueprintResponse`, `GenerationTelemetryResponse`
+
+### Changed
+
+* `application.py` — `generate_blueprint(request)` accepts a request model and maps service telemetry into `GenerationTelemetryResponse`
+* `app.py` — builds a `GenerateBlueprintRequest` and prints from the typed response fields
+* `tests/test_schemas.py` — request validation, whitespace stripping, empty-input rejection, response construction
+* `tests/test_application.py` — passes a `GenerateBlueprintRequest` to the application
+
+### Why
+
+The application layer now speaks typed request/response contracts rather than raw strings, so the same use case can be served by a CLI, API, or UI without changing core logic.
 
 ---
 
