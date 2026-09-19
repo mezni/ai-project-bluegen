@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.19 | Application layer | Composition root, app factory, no direct generator construction |
 | 0.0.18 | Interfaces / dependency inversion | ABC, abstract method, service depends on interface |
 | 0.0.17 | Service layer | Service abstraction, dependency injection, fake-generator tests |
 | 0.0.16 | Generation result | Typed result wrapper, access to blueprint + telemetry |
@@ -28,6 +29,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.19] - 2026-09-18
+
+### Application Layer
+
+**Feature Domain:** Application layer
+
+**Key Objectives:**
+
+* Composition root (`Application` + `create_application`)
+* Optional generator injection
+* App no longer constructs the generator directly
+
+### Added
+
+* `application.py` — `Application` wrapping a `ProjectBlueprintService`, plus `create_application(generator=None)` that builds the default generator or accepts an injected one
+* `tests/test_application.py` — verifies `create_application` with a fake generator (no LLM call)
+
+### Changed
+
+* `app.py` uses `create_application()` and no longer imports/constructs `ProjectGenerator`
 
 ---
 

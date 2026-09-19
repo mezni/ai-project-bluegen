@@ -6,7 +6,17 @@ Date: 2026-09-18
 
 An agentic AI learning project that transforms a simple AI project idea into a structured, implementation-ready architecture blueprint. Built progressively with Python, Pydantic, LangChain, and OpenRouter.
 
-Current stage: **Level 1 — Structured LLM** is functional end-to-end: `uv run python app.py "<idea>"` → prompt → OpenRouter LLM → validated `ProjectBlueprint`, wrapped in a `GenerationResult` (blueprint + telemetry). Logging with request IDs and latency timing are in place. The free Nemotron model is confirmed to return structured output.
+Current stage: **Level 1 — Structured LLM** functional end-to-end, now behind a clean layering:
+
+```text
+app.py (CLI)
+   → Application (application.py, composition root)
+   → ProjectBlueprintService (service.py)
+   → ProjectGeneratorInterface (interfaces.py, ABC)
+   → ProjectGenerator (generator.py, ChatOpenAI + structured output)
+```
+
+Logging (request IDs), latency telemetry, and error handling are in place. The free Nemotron model is confirmed to return structured output.
 
 ## Completed
 
@@ -28,15 +38,21 @@ Current stage: **Level 1 — Structured LLM** is functional end-to-end: `uv run 
 | 0.0.14 | Logging | `logging_config.py` structured format, `request_id` traces across stages |
 | 0.0.15 | Telemetry | `telemetry.py` `GenerationTelemetry` (latency, honest optional token fields), perf timing |
 | 0.0.16 | Generation result | `GenerationResult` (blueprint + telemetry); CLI prints Request ID + Latency |
+| 0.0.17 | Service layer | `ProjectBlueprintService`, dependency injection, fake-generator test |
+| 0.0.18 | Interfaces / dependency inversion | `interfaces.py` ABC, service depends on abstraction |
+| 0.0.19 | Application layer | `Application` + `create_application(generator=None)` composition root |
 
-Test status: **7 passed**. End-to-end runs verified against OpenRouter.
+Test status: **9 passed**.
 
 ## Current Structure
 
 ```text
 ai-project-bluegen/
 │
-├── app.py                  # CLI: uv run python app.py "<idea>" → prints blueprint + request ID + latency
+├── app.py                  # CLI: create_application() → generate → print blueprint + request ID + latency
+├── application.py          # Application + create_application (composition root)
+├── service.py              # ProjectBlueprintService (depends on interface)
+├── interfaces.py           # ProjectGeneratorInterface (ABC)
 ├── generator.py            # ProjectGenerator: ChatOpenAI + structured output + telemetry
 ├── schemas.py              # ProjectBlueprint (validated)
 ├── prompts.py              # SYSTEM_PROMPT, build_user_prompt
@@ -49,13 +65,15 @@ ai-project-bluegen/
 ├── tests/
 │   ├── test_schemas.py     # 3 tests
 │   ├── test_config.py      # 3 tests
-│   └── test_settings.py    # 1 test
+│   ├── test_settings.py    # 1 test
+│   ├── test_service.py     # 1 test (fake generator)
+│   └── test_application.py # 1 test (fake generator)
 ├── .env                    # OPENROUTER_API_KEY (set), OPENROUTER_MODEL
 ├── .env.example
 ├── .gitignore
 ├── pyproject.toml
 ├── uv.lock
-├── CHANGELOG.md            # Version history 0.0.1–0.0.16 (newest first)
+├── CHANGELOG.md            # Version history 0.0.1–0.0.19 (newest first)
 ├── README.md               # Full 21-section project document
 ├── docs/
 │   ├── ROADMAP.md          # 42-step roadmap with status markers (✅/◐/⬜)
@@ -67,9 +85,10 @@ ai-project-bluegen/
 
 * Start simple; add complexity only when it solves a real problem.
 * Use AI for ambiguity and reasoning; use deterministic Python for rules and guarantees.
-* Each increment of work = next `0.0.x` release; rows/entries added to `CHANGELOG.md` only as work completes (not strictly 1:1 with roadmap steps).
+* Each increment of work = next `0.0.x` release; rows/entries added to `CHANGELOG.md` only as work completes.
 * Building convention: `concept → implementation → failure modes` at each step.
 * Not jumping directly to a multi-agent system; evolving Level 1 → pipeline → agentic.
+* Depend on abstractions (`ProjectGeneratorInterface`), inject at the composition root (`create_application`).
 * LLM config lives in `config/llm.yaml` (typed `LLMConfig`); secrets live in `.env` (typed `Settings`).
 * **Never invent token counts** — token fields stay `None` unless the provider reports usage.
 * Free model in use: `nvidia/nemotron-3-ultra-550b-a55b:free` (confirmed structured output). Fallback candidate: `openai/gpt-4o-mini`.
@@ -92,7 +111,7 @@ uv run python app.py "Build an AI system that classifies corporate documents."
 uv run pytest
 ```
 
-## Next Step — Roadmap Step 7: Complete Single-Agent Blueprint (v0.0.17)
+## Next Step — Roadmap Step 7: Complete Single-Agent Blueprint (v0.0.20)
 
 The goal is to expand `ProjectBlueprint` beyond name + business outcome to a complete single-agent blueprint.
 
@@ -126,10 +145,11 @@ Objectives:
 
 ## Immediate Follow-ups
 
-1. Expand `schemas.py` toward the full blueprint (Step 7) → next release 0.0.17.
-2. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.16).
+1. Expand `schemas.py` toward the full blueprint (Step 7) → next release 0.0.20.
+2. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.19).
 3. Keep `docs/ROADMAP.md` status markers current (Step 23 Observability is in progress ◐).
-4. Do not create agents/, tools/, api/ directories yet — they come later per plan.
+4. Consider a shared `tests/conftest.py` to dedupe the two `FakeProjectGenerator` classes.
+5. Do not create agents/, tools/, api/ directories yet — they come later per plan.
 
 ## Todo
 
