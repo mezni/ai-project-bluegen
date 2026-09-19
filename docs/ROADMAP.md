@@ -24,7 +24,7 @@
 | 20 | Authority boundaries | Permissions, least privilege, allowed/forbidden actions | ⬜ |
 | 21 | Human-in-the-loop | Approval gates, high-risk actions, escalation | ⬜ |
 | 22 | Recovery | Retry, fallback model, invalid output recovery, failure handling | ⬜ |
-| 23 | Observability | Logs, request IDs, traces, latency, token usage, errors | ⬜ |
+| 23 | Observability | Logs, request IDs, traces, latency, token usage, errors | ◐ |
 | 24 | Evaluation | Accuracy, completeness, relevance, hallucination, structured evals | ⬜ |
 | 25 | Evaluation dataset | Golden examples, expected outputs, regression testing | ⬜ |
 | 26 | Knowledge/RAG | Documents → chunks → embeddings → vector store → retrieval | ⬜ |
@@ -45,7 +45,7 @@
 | 41 | Production evaluation | Automated quality gates before accepting a blueprint | ⬜ |
 | 42 | Final production architecture | Put everything together into a production-grade agentic system | ⬜ |
 
-Legend: ✅ completed · ⬜ not started
+Legend: ✅ completed · ◐ in progress · ⬜ not started
 
 ## The important progression
 
