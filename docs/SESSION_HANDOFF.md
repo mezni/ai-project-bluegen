@@ -6,25 +6,52 @@ Date: 2026-09-18
 
 An agentic AI learning project that transforms a simple AI project idea into a structured, implementation-ready architecture blueprint. Built progressively with Python, Pydantic, LangChain, and OpenRouter.
 
+Current stage: **Level 1 — Structured LLM** is functional end-to-end: idea → prompt → OpenRouter LLM → Pydantic-validated `ProjectBlueprint` (name + business outcome) via CLI.
+
 ## Completed
 
-| Phase | Status | What was built |
+| Release | Feature Domain | What was built |
 | --- | --- | --- |
-| 1. Project foundation | ✅ | Python env, `uv` project, dependencies, `.env` config, Git, project structure |
+| 0.0.1 | Project foundation | Python env, `uv` project, dependencies, `.env`, Git |
+| 0.0.2 | Initial project structure | `app.py`, `generator.py`, `schemas.py`, `prompts.py`, `.env.example` |
+| 0.0.3 | Pydantic Blueprint schema | `ProjectBlueprint` (`project_name`, `business_outcome`) |
+| 0.0.4 | Schema field validation | `Field` descriptions + `field_validator` (strip, reject empty) |
+| 0.0.5 | OpenRouter LLM client | `ProjectGenerator` via `openai` SDK |
+| 0.0.6 | Prompt engineering | `SYSTEM_PROMPT` + `build_user_prompt` |
+| 0.0.7 | LangChain OpenRouter client | `ChatOpenAI`, message tuples, `SecretStr` API key |
+| 0.0.8 | Structured LLM output | `with_structured_output(ProjectBlueprint)`; CLI prints typed fields |
+| 0.0.9 | Testing | `tests/test_schemas.py` (3 tests), pytest config |
+| 0.0.10 | Configuration | `config/llm.yaml`, `load_llm_config` |
+| 0.0.11 | Configuration validation | Typed `LLMConfig`, field constraints, `tests/test_config.py` |
+| 0.0.12 | Settings / env config | `pydantic-settings` `Settings`, `.env` loading, `tests/test_settings.py` |
+
+Test status: **7 passed**.
 
 ## Current Structure
 
 ```text
-blueprint-generator/
+ai-project-bluegen/
 │
-├── .env                    # OPENROUTER_API_KEY, OPENROUTER_MODEL (empty)
+├── app.py                  # CLI: uv run python app.py "<project idea>"
+├── generator.py            # ProjectGenerator: ChatOpenAI + structured output
+├── schemas.py              # ProjectBlueprint (validated)
+├── prompts.py              # SYSTEM_PROMPT, build_user_prompt
+├── config.py               # Settings (env) + LLMConfig (yaml)
+├── config/
+│   └── llm.yaml            # provider, base_url, model, temperature, max_tokens
+├── tests/
+│   ├── test_schemas.py     # 3 tests
+│   ├── test_config.py      # 3 tests
+│   └── test_settings.py    # 1 test
+├── .env                    # OPENROUTER_API_KEY (empty), OPENROUTER_MODEL
+├── .env.example
 ├── .gitignore
-├── pyproject.toml          # langchain, langchain-openrouter, pydantic, python-dotenv
+├── pyproject.toml
 ├── uv.lock
-├── CHANGELOG.md            # Version history 0.0.1–0.0.42 + 0.0.1 release
+├── CHANGELOG.md            # Version history 0.0.1–0.0.12 (newest first)
 ├── README.md               # Full 21-section project document
 ├── docs/
-│   ├── ROADMAP.md          # 42-step learning roadmap
+│   ├── ROADMAP.md          # 42-step roadmap with status markers
 │   └── SESSION_HANDOFF.md  # this file
 └── .venv/
 ```
@@ -33,30 +60,37 @@ blueprint-generator/
 
 * Start simple; add complexity only when it solves a real problem.
 * Use AI for ambiguity and reasoning; use deterministic Python for rules and guarantees.
-* Versions track roadmap phases: Phase N → version `0.0.N` (Phase 1 = 0.0.1).
+* Versions track roadmap phases: Step N → version `0.0.N`; new rows/entries are added to `CHANGELOG.md` only as work completes.
 * Building convention: `concept → implementation → failure modes` at each step.
 * Not jumping directly to a multi-agent system; evolving Level 1 → pipeline → agentic.
+* LLM config lives in `config/llm.yaml` (typed `LLMConfig`); secrets live in `.env` (typed `Settings`).
+* Free model in use: `nvidia/nemotron-3-ultra-550b-a55b:free`. If structured output is unsupported, fall back to `openai/gpt-4o-mini`.
 
-## Dependencies (Phase 1)
+## Dependencies
 
 ```text
-langchain>=1.4.2
-langchain-openrouter>=0.2.8
-pydantic>=2.12.5
-python-dotenv>=1.2.3
+langchain>=1.4.2          langchain-openai>=1.6.2    langchain-openrouter>=0.2.8
+openai>=3.16.2            pydantic>=2.12.5           pydantic-settings
+python-dotenv>=1.2.3      pyyaml
+dev: pytest>=9.1.1
 ```
 
-Python `>=3.12`. Testing framework planned: pytest.
+Python `>=3.12`.
 
-## Next Step — Phase 2: Pydantic Blueprint Schema (v0.0.2)
+## Commands
 
-The goal is `schemas.py` with a typed `Blueprint` schema.
+```text
+uv run python app.py "Build an AI system that classifies corporate documents."
+uv run pytest
+```
+
+## Next Step — Roadmap Step 7: Complete Single-Agent Blueprint (v0.0.13)
+
+The goal is to expand `ProjectBlueprint` beyond name + business outcome to a complete single-agent blueprint.
 
 Planned fields (from the blueprint reasoning list):
 
 ```text
-name
-business_outcome
 requirements
 boundaries
 constraints
@@ -77,24 +111,23 @@ security
 
 Objectives:
 
-* `BaseModel` usage
-* Type hints and fields
-* Validation
-* Serialization
-* Nested models
+* Nested Pydantic models (`BlueprintInput`/section schemas)
+* List fields with validation
+* Update `SYSTEM_PROMPT` to generate the full blueprint
+* Extend tests
 
 ## Immediate Follow-ups
 
-1. Build `schemas.py` via `uv` project (`$VIRTUAL_ENV` already created, run through `.venv`).
-2. Fill `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in `.env` when ready for Phase 3.
-3. Update `CHANGELOG.md` with a `[0.0.2]` release entry after Phase 2 completes.
-4. Do not create agents/, tools/, api/ directories yet — they come later per plan.
+1. Get a working end-to-end run first — fill `OPENROUTER_API_KEY` in `.env`, confirm the free Nemotron model returns structured output.
+2. Expand `schemas.py` toward the full blueprint (Step 7).
+3. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.12).
+4. Keep `docs/ROADMAP.md` status markers current.
+5. Do not create agents/, tools/, api/ directories yet — they come later per plan.
 
 ## Todo
 
-- [ ] Phase 2 — Pydantic Blueprint schema (`schemas.py`)
-- [ ] Phase 3 — OpenRouter LLM client
-- [ ] Phase 4 — First simple prompt
-- [ ] Phase 5 — Structured LLM output
-- [ ] Phase 6 — Project Name + Business Outcome (first milestone)
-- [ ] Phase 7+ — per `docs/ROADMAP.md`
+- [ ] Step 7 — Complete single-agent blueprint (`schemas.py` expansion)
+- [ ] Step 8 — Prompt engineering v2
+- [ ] Step 9 — Validation layer (deterministic Python validation)
+- [ ] Step 10 follow-up — integration tests for the LLM path
+- [ ] Step 11+ — per `docs/ROADMAP.md`

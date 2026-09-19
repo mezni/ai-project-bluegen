@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.13 | Application exceptions | Custom error, exception chaining, input vs generation errors |
 | 0.0.12 | Settings / environment config | pydantic-settings, .env loading, Settings model, settings tests |
 | 0.0.11 | Configuration validation | Typed LLMConfig, field constraints, config tests |
 | 0.0.10 | Configuration | YAML config management, model settings, config-driven LLM client |
@@ -22,6 +23,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.13] - 2026-09-18
+
+### Application Exceptions
+
+**Feature Domain:** Application exceptions
+
+**Key Objectives:**
+
+* Custom application exception
+* Exception chaining (`raise ... from exc`)
+* Input vs generation error separation
+
+### Added
+
+* `exceptions.py` — `ProjectGenerationError`
+
+### Changed
+
+* `generator.py` wraps any `structured_llm.invoke` failure in `ProjectGenerationError` (preserving the original via `from exc`)
+* `app.py` catches `ValueError` (input error) and `ProjectGenerationError` (generation error) separately, exiting with a clear message for each
 
 ---
 
