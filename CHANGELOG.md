@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.14 | Logging | Structured log format, request_id tracing, log configuration |
 | 0.0.13 | Application exceptions | Custom error, exception chaining, input vs generation errors |
 | 0.0.12 | Settings / environment config | pydantic-settings, .env loading, Settings model, settings tests |
 | 0.0.11 | Configuration validation | Typed LLMConfig, field constraints, config tests |
@@ -23,6 +24,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.14] - 2026-09-18
+
+### Logging
+
+**Feature Domain:** Logging
+
+**Key Objectives:**
+
+* Structured log format (timestamp, level, logger, message)
+* `request_id` tracing across generation stages
+* Centralized logging configuration
+
+### Added
+
+* `logging_config.py` — `configure_logging()` sets INFO level with a structured format
+
+### Changed
+
+* `generator.py` logs start, LLM call, completion, warning (empty input), and exception (with traceback) — each tagged with a per-request `request_id` (uuid)
+* `app.py` calls `configure_logging()` before running
 
 ---
 
