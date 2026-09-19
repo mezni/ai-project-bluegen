@@ -8,7 +8,7 @@ from config import load_llm_config, load_settings
 from exceptions import ProjectGenerationError
 from prompts import SYSTEM_PROMPT, build_user_prompt
 from schemas import ProjectBlueprint
-from telemetry import GenerationTelemetry
+from telemetry import GenerationResult, GenerationTelemetry
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class ProjectGenerator:
             ProjectBlueprint
         )
 
-    def generate(self, project_idea: str) -> ProjectBlueprint:
+    def generate(self, project_idea: str) -> GenerationResult:
         request_id = str(uuid.uuid4())
 
         logger.info(
@@ -63,12 +63,6 @@ class ProjectGenerator:
 
             response = self.structured_llm.invoke(messages)
 
-            logger.info(
-                "LLM response metadata | request_id=%s | metadata=%s",
-                request_id,
-                response,
-            )
-
             latency = time.perf_counter() - start_time
 
             telemetry = GenerationTelemetry(
@@ -90,7 +84,10 @@ class ProjectGenerator:
                 latency,
             )
 
-            return response
+            return GenerationResult(
+                blueprint=response,
+                telemetry=telemetry,
+            )
 
         except Exception as exc:
             latency = time.perf_counter() - start_time
