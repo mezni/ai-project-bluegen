@@ -10,12 +10,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.7 | LangChain OpenRouter client | ChatOpenAI, temperature, message tuples, LLM invoke |
 | 0.0.6 | Prompt engineering | System vs user prompts, instructions, constraints, output requirements |
 | 0.0.5 | OpenRouter LLM client | LLM APIs, API keys, models, direct client configuration |
 | 0.0.4 | Schema field validation | Field descriptions, input stripping, empty value prevention |
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.7] - 2026-09-18
+
+### LangChain OpenRouter Client
+
+**Feature Domain:** LangChain OpenRouter client
+
+**Key Objectives:**
+
+* LangChain `ChatOpenAI`
+* Model and temperature configuration
+* System/human message tuples
+* `llm.invoke`
+
+### Changed
+
+* `generator.py` replaces the `openai` SDK client with LangChain `ChatOpenAI` (model `nvidia/nemotron-3-ultra-550b-a55b:free`, `temperature=0.2`, OpenRouter `base_url`)
+* `generator.py` sends `("system", ...)` / `("human", ...)` message tuples and returns `response.content` from `llm.invoke`
+* `generator.py` reads the API key from `OPENROUTER_API_KEY` (falling back to `OPENAI_API_KEY`), raises `ValueError` if missing, and passes it as `SecretStr`
 
 ---
 
