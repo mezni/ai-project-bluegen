@@ -6,6 +6,7 @@ from langchain_openai import ChatOpenAI
 
 from config import load_llm_config, load_settings
 from exceptions import ProjectGenerationError
+from interfaces import ProjectGeneratorInterface
 from prompts import SYSTEM_PROMPT, build_user_prompt
 from schemas import ProjectBlueprint
 from telemetry import GenerationResult, GenerationTelemetry
@@ -14,7 +15,7 @@ from telemetry import GenerationResult, GenerationTelemetry
 logger = logging.getLogger(__name__)
 
 
-class ProjectGenerator:
+class ProjectGenerator(ProjectGeneratorInterface):
     def __init__(self) -> None:
         settings = load_settings()
         config = load_llm_config()

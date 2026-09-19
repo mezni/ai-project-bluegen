@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.18 | Interfaces / dependency inversion | ABC, abstract method, service depends on interface |
 | 0.0.17 | Service layer | Service abstraction, dependency injection, fake-generator tests |
 | 0.0.16 | Generation result | Typed result wrapper, access to blueprint + telemetry |
 | 0.0.15 | Telemetry | Latency measurement, telemetry model, honest token tracking |
@@ -27,6 +28,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.18] - 2026-09-18
+
+### Interfaces / Dependency Inversion
+
+**Feature Domain:** Interfaces / dependency inversion
+
+**Key Objectives:**
+
+* `abc.ABC` + `@abstractmethod`
+* Service depends on an abstraction, not a concrete implementation
+
+### Added
+
+* `interfaces.py` — `ProjectGeneratorInterface` with abstract `generate(project_idea)`
+
+### Changed
+
+* `generator.py` — `ProjectGenerator` implements `ProjectGeneratorInterface`
+* `service.py` — `ProjectBlueprintService` accepts `ProjectGeneratorInterface`
+* `tests/test_service.py` — `FakeProjectGenerator` implements the interface
 
 ---
 
