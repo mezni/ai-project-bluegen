@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.10 | Configuration | YAML config management, model settings, config-driven LLM client |
 | 0.0.9 | Testing | pytest, unit tests, validation tests |
 | 0.0.8 | Structured LLM output | LangChain structured output + Pydantic schema integration |
 | 0.0.7 | LangChain OpenRouter client | ChatOpenAI, temperature, message tuples, LLM invoke |
@@ -19,6 +20,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.10] - 2026-09-18
+
+### Configuration
+
+**Feature Domain:** Configuration
+
+**Key Objectives:**
+
+* YAML config management
+* Model settings (model, temperature, max_tokens, base_url)
+* Config-driven LLM client
+
+### Added
+
+* `config/llm.yaml` — YAML config with `provider`, `base_url`, `model`, `temperature`, `max_tokens`
+* `config.py` — `load_llm_config()` reads the YAML config and raises `FileNotFoundError` / `ValueError` for missing or empty config
+
+### Changed
+
+* `pyproject.toml` adds `pyyaml` as a dependency
+* `generator.py` builds `ChatOpenAI` from the YAML config values
 
 ---
 
