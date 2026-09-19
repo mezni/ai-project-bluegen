@@ -29,8 +29,9 @@ Each row records a completed increment with its one-sentence summary, the archit
 | 22 | File-based versioned prompts | Store prompt templates on disk under `prompts/<name>/<version>/` so `config/prompts.yaml` selects the active version without code changes. | **Config selects the version**: the filename layout (`<name>/<version>/`) enables prompt evolution and rollback by flipping config, not redeploying — prerequisites for prompt regression testing. |
 | 23 | Typed request/response models | Validate input at the boundary and return typed responses so the same use case can serve CLI, API, or UI. | **Boundary contracts**: `GenerateBlueprintRequest`/`Response` make the application's interface explicit and validated, so the same use case is reachable from a CLI, FastAPI, or Streamlit without core changes — the first step toward a service/API layer. |
 | 24 | CLI separation | Move presentation into a dedicated `CLI` and reduce `app.py` to a launcher. | **Replaceable interaction surface**: the CLI is now a plugin-like detail — the app flow depends only on typed request/response contracts, so swapping in FastAPI, Streamlit, or a worker is a presentation-only change; `app.py` as a pure launcher keeps it obvious. |
+| 25 | LLM dependency injection | Introduce `LLMInterface` and let `ProjectGenerator` accept an injected LLM so the full generate flow is testable without OpenRouter. | **Fake-it-through-the-contract**: depending on `LLMInterface.invoke` means tests can substitute `FakeLLM` and exercise the real generator logic (validation, prompts, telemetry, errors) with zero network calls; production builds the real `ChatOpenAI` at the composition root. |
 
-Legend: completed steps 1–24.
+Legend: completed steps 1–25.
 
 ## Architecture after Step 20
 
@@ -44,4 +45,4 @@ app.py (CLI)
                └── ChatOpenAI (LangChain) → OpenRouter
 ```
 
-**13 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`).
+**14 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_generator.py`).

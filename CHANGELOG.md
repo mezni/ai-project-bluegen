@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.24 | LLM dependency injection | LLMInterface, injectable LLM, fully testable generator without real calls |
 | 0.0.23 | CLI separation | Dedicated CLI class, app.py reduced to a launcher, replaceable interaction surface |
 | 0.0.22 | Typed request/response models | Input validation schemas, typed API response for the application layer |
 | 0.0.21 | File-based versioned prompts | Prompt templates on disk, config selects active version |
@@ -33,6 +34,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.24] - 2026-09-19
+
+### LLM Dependency Injection
+
+**Feature Domain:** LLM dependency injection
+
+**Key Objectives:**
+
+* Introduce an `LLMInterface` contract for model invocation
+* Let `ProjectGenerator` accept an injected LLM (real or fake)
+* Make the generator fully testable without OpenRouter calls
+
+### Added
+
+* `interfaces.py` — `LLMInterface` ABC with `invoke()`
+* `tests/fakes.py` — `FakeLLM` returning a validated `ProjectBlueprint` (never contacts OpenRouter)
+* `tests/test_generator.py` — verifies `ProjectGenerator` uses an injected LLM and records `prompt_version`
+
+### Changed
+
+* `generator.py` — constructor takes `llm` and `prompt_manager`; builds `ChatOpenAI` + `with_structured_output` only when no LLM is injected
+
+### Why
+
+The generator no longer hard-depends on OpenRouter: tests exercise the full generate flow with a fake, and model/provider switching is now a constructor choice — the payoff of the interface established earlier.
 
 ---
 
