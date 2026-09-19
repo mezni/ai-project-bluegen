@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.12 | Settings / environment config | pydantic-settings, .env loading, Settings model, settings tests |
 | 0.0.11 | Configuration validation | Typed LLMConfig, field constraints, config tests |
 | 0.0.10 | Configuration | YAML config management, model settings, config-driven LLM client |
 | 0.0.9 | Testing | pytest, unit tests, validation tests |
@@ -21,6 +22,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.12] - 2026-09-18
+
+### Settings / Environment Configuration
+
+**Feature Domain:** Settings / environment configuration
+
+**Key Objectives:**
+
+* `pydantic-settings` `BaseSettings`
+* `.env` loading via `SettingsConfigDict`
+* API key as typed setting
+
+### Added
+
+* `config.py` adds `Settings` (`openrouter_api_key` min length 1) and `load_settings()` — reads `.env` with `extra="ignore"`
+* `tests/test_settings.py` with a test that reads `OPENROUTER_API_KEY` from the environment via `monkeypatch`
+
+### Changed
+
+* `generator.py` replaces `load_dotenv`/`os.getenv` with `Settings` — API key now comes from `settings.openrouter_api_key`
+* `pyproject.toml` adds `pydantic-settings` as a dependency
 
 ---
 
