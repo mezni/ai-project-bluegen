@@ -28,8 +28,9 @@ Each row records a completed increment with its one-sentence summary, the archit
 | 21 | PromptManager | Extract prompt management into a dedicated `PromptManager` with versioning stored in `config/prompts.yaml` and the version recorded in telemetry. | **Prompt as a first-class, versioned asset**: generation logic stops importing prompt strings directly; the version travels in telemetry so output quality can be traced back to the exact prompt that produced it. |
 | 22 | File-based versioned prompts | Store prompt templates on disk under `prompts/<name>/<version>/` so `config/prompts.yaml` selects the active version without code changes. | **Config selects the version**: the filename layout (`<name>/<version>/`) enables prompt evolution and rollback by flipping config, not redeploying — prerequisites for prompt regression testing. |
 | 23 | Typed request/response models | Validate input at the boundary and return typed responses so the same use case can serve CLI, API, or UI. | **Boundary contracts**: `GenerateBlueprintRequest`/`Response` make the application's interface explicit and validated, so the same use case is reachable from a CLI, FastAPI, or Streamlit without core changes — the first step toward a service/API layer. |
+| 24 | CLI separation | Move presentation into a dedicated `CLI` and reduce `app.py` to a launcher. | **Replaceable interaction surface**: the CLI is now a plugin-like detail — the app flow depends only on typed request/response contracts, so swapping in FastAPI, Streamlit, or a worker is a presentation-only change; `app.py` as a pure launcher keeps it obvious. |
 
-Legend: completed steps 1–23.
+Legend: completed steps 1–24.
 
 ## Architecture after Step 20
 

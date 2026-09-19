@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.23 | CLI separation | Dedicated CLI class, app.py reduced to a launcher, replaceable interaction surface |
 | 0.0.22 | Typed request/response models | Input validation schemas, typed API response for the application layer |
 | 0.0.21 | File-based versioned prompts | Prompt templates on disk, config selects active version |
 | 0.0.20 | Prompt management | Dedicated PromptManager, prompt versioning, versioned telemetry |
@@ -32,6 +33,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.23] - 2026-09-19
+
+### CLI Separation
+
+**Feature Domain:** CLI separation
+
+**Key Objectives:**
+
+* Move all presentation/CLI concerns into a dedicated `CLI`
+* Reduce `app.py` to a thin launcher
+* Make the interaction surface replaceable (CLI, API, UI) without touching the application flow
+
+### Added
+
+* `cli.py` — `CLI` (builds the request, calls the application, formats/prints the response) plus a `main()` that reads `sys.argv`
+
+### Changed
+
+* `app.py` — reduced to `from cli import main; main()`
+
+### Why
+
+The business/application flow no longer depends on how the user interacts with the system — a key lesson: swap `CLI` for FastAPI, Streamlit, or a queue consumer without changing the service or generator.
 
 ---
 
