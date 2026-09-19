@@ -10,9 +10,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.4 | Schema field validation | Field descriptions, input stripping, empty value prevention |
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.4] - 2026-09-18
+
+### Schema Field Validation
+
+**Feature Domain:** Schema field validation
+
+**Key Objectives:**
+
+* `Field` descriptions
+* `field_validator`
+* Input stripping
+* Empty value prevention
+
+### Changed
+
+* `schemas.py` adds `Field` descriptions to `project_name` and `business_outcome`
+* `schemas.py` adds a `field_validator` that strips whitespace and raises `ValueError` ("Value cannot be empty.") for empty values on both fields
+* `app.py` verifies valid data still validates and dumps correctly
 
 ---
 
