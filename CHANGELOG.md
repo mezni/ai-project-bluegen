@@ -10,10 +10,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.6 | Prompt engineering | System vs user prompts, instructions, constraints, output requirements |
+| 0.0.5 | OpenRouter LLM client | LLM APIs, API keys, models, direct client configuration |
 | 0.0.4 | Schema field validation | Field descriptions, input stripping, empty value prevention |
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.6] - 2026-09-18
+
+### Phase 4 — Prompt Engineering
+
+**Feature Domain:** Prompt engineering
+
+**Key Objectives:**
+
+* System vs user prompts
+* Instructions
+* Constraints
+* Output requirements
+
+### Added
+
+* `prompts.py` adds `SYSTEM_PROMPT` — an AI architecture assistant that asks for a project name and business outcome while forbidding technical architecture design
+* `prompts.py` adds `build_user_prompt(project_idea)` — wraps the project idea into a user prompt
+
+### Changed
+
+* `generator.py` now sends `SYSTEM_PROMPT` (system) and `build_user_prompt(project_idea)` (user) to the OpenRouter LLM
+
+---
+
+## [0.0.5] - 2026-09-18
+
+### Phase 3 — OpenRouter LLM Client
+
+**Feature Domain:** OpenRouter LLM client
+
+**Key Objectives:**
+
+* LLM APIs
+* API keys
+* Models
+* Direct client configuration
+
+### Added
+
+* `generator.py` adds `ProjectGenerator` — an OpenRouter LLM client (via the `openai` SDK) that raises `ValueError` when `OPENROUTER_API_KEY` is not configured
+
+### Changed
+
+* `app.py` uses `ProjectGenerator` to generate a response for "Build an AI system that classifies corporate documents."
 
 ---
 
