@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 
 from langchain_openai import ChatOpenAI
@@ -7,6 +8,7 @@ from config import load_llm_config, load_settings
 from exceptions import ProjectGenerationError
 from prompts import SYSTEM_PROMPT, build_user_prompt
 from schemas import ProjectBlueprint
+from telemetry import GenerationTelemetry
 
 
 logger = logging.getLogger(__name__)
@@ -51,25 +53,52 @@ class ProjectGenerator:
             ("human", build_user_prompt(project_idea)),
         ]
 
+        start_time = time.perf_counter()
+
         try:
             logger.info(
                 "Calling LLM | request_id=%s",
                 request_id,
             )
 
-            blueprint = self.structured_llm.invoke(messages)
+            response = self.structured_llm.invoke(messages)
 
             logger.info(
-                "Project generation completed | request_id=%s",
+                "LLM response metadata | request_id=%s | metadata=%s",
                 request_id,
+                response,
             )
 
-            return blueprint
+            latency = time.perf_counter() - start_time
+
+            telemetry = GenerationTelemetry(
+                request_id=request_id,
+                model=self.llm.model_name,
+                latency_seconds=latency,
+            )
+
+            logger.info(
+                "Generation telemetry | request_id=%s | model=%s | latency=%.3fs",
+                telemetry.request_id,
+                telemetry.model,
+                telemetry.latency_seconds,
+            )
+
+            logger.info(
+                "Project generation completed | request_id=%s | latency=%.3fs",
+                request_id,
+                latency,
+            )
+
+            return response
 
         except Exception as exc:
+            latency = time.perf_counter() - start_time
+
             logger.exception(
-                "Project generation failed | request_id=%s",
+                "Project generation failed | request_id=%s | latency=%.3fs",
                 request_id,
+                latency,
             )
 
             raise ProjectGenerationError(

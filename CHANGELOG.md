@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.15 | Telemetry | Latency measurement, telemetry model, honest token tracking |
 | 0.0.14 | Logging | Structured log format, request_id tracing, log configuration |
 | 0.0.13 | Application exceptions | Custom error, exception chaining, input vs generation errors |
 | 0.0.12 | Settings / environment config | pydantic-settings, .env loading, Settings model, settings tests |
@@ -24,6 +25,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.15] - 2026-09-18
+
+### Telemetry
+
+**Feature Domain:** Telemetry
+
+**Key Objectives:**
+
+* Latency measurement with `time.perf_counter()`
+* `GenerationTelemetry` dataclass
+* Honest token tracking — never invent token counts
+
+### Added
+
+* `telemetry.py` — `GenerationTelemetry` with `request_id`, `model`, `latency_seconds`, and optional `input_tokens`/`output_tokens`/`total_tokens` (default `None`)
+
+### Changed
+
+* `generator.py` times the LLM call, logs LLM response metadata (temporary inspection), and logs generation telemetry (model + latency) on success
 
 ---
 
