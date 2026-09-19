@@ -10,8 +10,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.3] - 2026-09-18
+
+### Phase 2 — Pydantic Blueprint Schema
+
+**Feature Domain:** Pydantic Blueprint schema
+
+**Key Objectives:**
+
+* `BaseModel`
+* Type hints and fields
+* Validation
+* Structured data
+
+### Changed
+
+* `schemas.py` now defines `ProjectBlueprint` with `project_name` and `business_outcome` fields (replaces the starter `ProjectIdea`/`Blueprint` placeholders)
+* `app.py` tests the schema without an LLM — builds a `ProjectBlueprint`, prints it, and prints `model_dump()`
 
 ---
 
