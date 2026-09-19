@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.11 | Configuration validation | Typed LLMConfig, field constraints, config tests |
 | 0.0.10 | Configuration | YAML config management, model settings, config-driven LLM client |
 | 0.0.9 | Testing | pytest, unit tests, validation tests |
 | 0.0.8 | Structured LLM output | LangChain structured output + Pydantic schema integration |
@@ -20,6 +21,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.11] - 2026-09-18
+
+### Configuration Validation
+
+**Feature Domain:** Configuration validation
+
+**Key Objectives:**
+
+* Typed `LLMConfig` model
+* Field constraints (`temperature` 0.0–2.0, `max_tokens` > 0)
+* Config validation tests
+
+### Changed
+
+* `config.py` `load_llm_config()` now returns a typed `LLMConfig` via `model_validate` instead of a raw dict
+* `generator.py` uses attribute access (`config.model`, `config.temperature`, ...)
+
+### Added
+
+* `tests/test_config.py` with 3 tests — accepts valid config, rejects invalid temperature, rejects invalid max_tokens
 
 ---
 
