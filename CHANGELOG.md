@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.25 | Structured LLM abstraction | Clean StructuredLLMInterface, structured output owned by the adapter, no conditional branches |
 | 0.0.24 | LLM dependency injection | LLMInterface, injectable LLM, fully testable generator without real calls |
 | 0.0.23 | CLI separation | Dedicated CLI class, app.py reduced to a launcher, replaceable interaction surface |
 | 0.0.22 | Typed request/response models | Input validation schemas, typed API response for the application layer |
@@ -34,6 +35,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.25] - 2026-09-19
+
+### Structured LLM Abstraction
+
+**Feature Domain:** Structured LLM abstraction
+
+**Key Objectives:**
+
+* Replace the temporary `llm is None` branch with a clean, structured-output contract
+* Own the LangChain wiring inside a dedicated adapter
+* Keep the generator portable across providers/fakes through the interface
+
+### Added
+
+* `structured_llm.py` — `LangChainStructuredLLM` builds `ChatOpenAI` + `with_structured_output(ProjectBlueprint)` and exposes `model_name`
+
+### Changed
+
+* `interfaces.py` — `StructuredLLMInterface` with `generate(messages) -> ProjectBlueprint` and a `model_name` property
+* `generator.py` — injects a `StructuredLLMInterface` directly, no conditional construction branch; telemetry reads `self.llm.model_name`
+* `tests/fakes.py` — `FakeLLM` implements the `model_name` property + `generate`
+* `tests/test_generator.py` — asserts telemetry `model == "fake-model"` and `prompt_version == "v1"`
+
+### Why
+
+Structured output is a property of the adapter, not the generator. The temporary branching is gone, the contract is uniform, and swapping OpenRouter for another provider or a fake is a single constructor choice.
 
 ---
 

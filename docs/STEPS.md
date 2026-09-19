@@ -30,8 +30,9 @@ Each row records a completed increment with its one-sentence summary, the archit
 | 23 | Typed request/response models | Validate input at the boundary and return typed responses so the same use case can serve CLI, API, or UI. | **Boundary contracts**: `GenerateBlueprintRequest`/`Response` make the application's interface explicit and validated, so the same use case is reachable from a CLI, FastAPI, or Streamlit without core changes — the first step toward a service/API layer. |
 | 24 | CLI separation | Move presentation into a dedicated `CLI` and reduce `app.py` to a launcher. | **Replaceable interaction surface**: the CLI is now a plugin-like detail — the app flow depends only on typed request/response contracts, so swapping in FastAPI, Streamlit, or a worker is a presentation-only change; `app.py` as a pure launcher keeps it obvious. |
 | 25 | LLM dependency injection | Introduce `LLMInterface` and let `ProjectGenerator` accept an injected LLM so the full generate flow is testable without OpenRouter. | **Fake-it-through-the-contract**: depending on `LLMInterface.invoke` means tests can substitute `FakeLLM` and exercise the real generator logic (validation, prompts, telemetry, errors) with zero network calls; production builds the real `ChatOpenAI` at the composition root. |
+| 26 | Structured LLM abstraction | Own structured output in a dedicated adapter and remove the temporary `llm is None` branch from the generator. | **Adapter owns the framework**: `StructuredLLMInterface` (with a `model_name` property) means `with_structured_output` lives only inside `LangChainStructuredLLM`, the generator stays provider-agnostic, and fakes implement the same uniform contract — no conditional wiring. |
 
-Legend: completed steps 1–25.
+Legend: completed steps 1–26.
 
 ## Architecture after Step 20
 
