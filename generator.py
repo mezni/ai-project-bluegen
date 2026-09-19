@@ -4,10 +4,10 @@ import uuid
 
 from langchain_openai import ChatOpenAI
 
-from config import load_llm_config, load_settings
+from config import load_llm_config, load_prompts_config, load_settings
 from exceptions import ProjectGenerationError
 from interfaces import ProjectGeneratorInterface
-from prompts import SYSTEM_PROMPT, build_user_prompt
+from prompt_manager import PromptManager
 from schemas import ProjectBlueprint
 from telemetry import GenerationResult, GenerationTelemetry
 
@@ -16,9 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 class ProjectGenerator(ProjectGeneratorInterface):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        prompt_manager: PromptManager | None = None,
+    ) -> None:
         settings = load_settings()
         config = load_llm_config()
+        prompts_config = load_prompts_config()
 
         self.llm = ChatOpenAI(
             model=config.model,
@@ -30,6 +34,11 @@ class ProjectGenerator(ProjectGeneratorInterface):
 
         self.structured_llm = self.llm.with_structured_output(
             ProjectBlueprint
+        )
+
+        self.prompt_manager = prompt_manager or PromptManager()
+        self.prompt_version = prompts_config.project_blueprint.get(
+            "version", "v1"
         )
 
     def generate(self, project_idea: str) -> GenerationResult:
@@ -50,8 +59,8 @@ class ProjectGenerator(ProjectGeneratorInterface):
             raise ValueError("Project idea cannot be empty.")
 
         messages = [
-            ("system", SYSTEM_PROMPT),
-            ("human", build_user_prompt(project_idea)),
+            ("system", self.prompt_manager.get_system_prompt()),
+            ("human", self.prompt_manager.build_user_prompt(project_idea)),
         ]
 
         start_time = time.perf_counter()
@@ -69,6 +78,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
             telemetry = GenerationTelemetry(
                 request_id=request_id,
                 model=self.llm.model_name,
+                prompt_version=self.prompt_version,
                 latency_seconds=latency,
             )
 

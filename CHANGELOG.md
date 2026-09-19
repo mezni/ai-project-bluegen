@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.20 | Prompt management | Dedicated PromptManager, prompt versioning, versioned telemetry |
 | 0.0.19 | Application layer | Composition root, app factory, no direct generator construction |
 | 0.0.18 | Interfaces / dependency inversion | ABC, abstract method, service depends on interface |
 | 0.0.17 | Service layer | Service abstraction, dependency injection, fake-generator tests |
@@ -29,6 +30,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.20] - 2026-09-19
+
+### Prompt Management
+
+**Feature Domain:** Prompt management
+
+**Key Objectives:**
+
+* Dedicated `PromptManager` abstraction for prompt building
+* Versioned prompts via `config/prompts.yaml`
+* `prompt_version` recorded in telemetry
+
+### Added
+
+* `prompt_manager.py` — `PromptManager` wrapping `SYSTEM_PROMPT` and `build_user_prompt`
+* `config/prompts.yaml` — `project_blueprint.version: "v1"`
+* `tests/test_prompt_manager.py` — verifies system prompt content and user prompt embedding
+
+### Changed
+
+* `generator.py` injects `PromptManager` (optional) and builds messages through it; reads `prompt_version` from `config/prompts.yaml`
+* `config.py` adds `PromptsConfig` + `load_prompts_config()`
+* `telemetry.py` — `GenerationTelemetry` gains a `prompt_version` field
+* `tests/test_service.py` and `tests/test_application.py` fakes include `prompt_version`
+
+### Why
+
+Prompts are now managed as a versioned asset (config-driven) rather than imports scattered through the generator, preparing for prompt evolution and regression tracking.
 
 ---
 

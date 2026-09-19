@@ -25,9 +25,9 @@ Each row records a completed increment with its one-sentence summary and the con
 | 18 | Application service | Extract the use case into `ProjectBlueprintService`, separating CLI concerns from LLM interaction. | Layering, use-case/service layer, dependency injection (constructor), testable boundary |
 | 19 | Generator interface | Define `ProjectGeneratorInterface` (ABC) and make the service depend on the abstraction, not the implementation. | Dependence inversion, `ABC`/`abstractmethod`, contract-first design, swap providers/fakes |
 | 20 | Composition root | Move object construction into `create_application()` so the whole object graph is assembled in one place. | Composition root, `Application` facade, dependency assembly, single construct point |
-| 21 | PromptManager *(next)* | Extract prompt management into a dedicated `PromptManager` including prompt versioning. | Prompt as managed asset, versioning, prompt reuse, separation from generation logic |
+| 21 | PromptManager | Extract prompt management into a dedicated `PromptManager` with versioning stored in `config/prompts.yaml` and the version recorded in telemetry. | Prompt as managed asset, prompt versioning, config-driven version, separation from generation logic |
 
-Legend: completed steps 1–20 · next step 21 planned.
+Legend: completed steps 1–21.
 
 ## Architecture after Step 20
 
@@ -40,4 +40,4 @@ app.py (CLI)
                → ChatOpenAI (LangChain) → OpenRouter
 ```
 
-**9 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`).
+**11 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`).
