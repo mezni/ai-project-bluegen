@@ -1,5 +1,7 @@
 # Learning Roadmap
 
+> Granular, increment-by-increment progress (with each step's architectural choice and why) is tracked in [STEPS.md](./STEPS.md). This roadmap is the high-level 42-step curriculum.
+
 | Step | Build | What you learn | Status |
 | --- | --- | --- | --- |
 | 1 | Project foundation | Python project structure, uv, virtual environments, .env, Git | ✅ |

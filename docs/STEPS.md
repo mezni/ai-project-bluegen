@@ -34,16 +34,19 @@ Each row records a completed increment with its one-sentence summary, the archit
 
 Legend: completed steps 1–26.
 
-## Architecture after Step 20
+## Architecture after Step 26
 
 ```text
-app.py (CLI)
-   → Application (application.py, composition root)
-      → ProjectBlueprintService (service.py)
-         → ProjectGeneratorInterface (interfaces.py, ABC)
-            → ProjectGenerator (generator.py)
-               ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
-               └── ChatOpenAI (LangChain) → OpenRouter
+app.py (launcher)
+   → CLI (cli.py — replaceable presentation layer)
+      → Application (application.py, composition root, typed request/response)
+         → ProjectBlueprintService (service.py)
+            → ProjectGeneratorInterface (interfaces.py, ABC)
+               → ProjectGenerator (generator.py)
+                  ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
+                  └── StructuredLLMInterface (interfaces.py, ABC)
+                     ├── LangChainStructuredLLM (structured_llm.py) → ChatOpenAI → OpenRouter
+                     └── FakeLLM (tests/fakes.py)
 ```
 
 **14 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_generator.py`).

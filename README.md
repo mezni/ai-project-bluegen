@@ -903,24 +903,50 @@ Learn:
 
 ## 18. Initial Project Structure
 
-Start intentionally small:
+Start intentionally small.
+
+The current (Level 1) structure:
 
 ```text
-blueprint-generator/
+ai-project-bluegen/
 │
-├── app.py
-├── generator.py
-├── schemas.py
-├── prompts.py
+├── app.py                  # launcher → cli.main()
+├── cli.py                  # replaceable CLI presentation layer
+├── application.py          # Application + create_application (composition root)
+├── service.py              # ProjectBlueprintService (use case)
+├── interfaces.py           # ProjectGeneratorInterface, StructuredLLMInterface
+├── generator.py            # ProjectGenerator (validation, telemetry, prompts)
+├── structured_llm.py       # LangChainStructuredLLM (ChatOpenAI + structured output)
+├── prompt_manager.py       # PromptManager (versioned prompt files)
+├── schemas.py              # ProjectBlueprint + typed request/response models
+├── exceptions.py
+├── telemetry.py            # GenerationTelemetry, GenerationResult
+├── logging_config.py
+├── config.py               # Settings (env) + LLMConfig (yaml)
+├── config/
+│   ├── llm.yaml
+│   └── prompts.yaml
+├── prompts/
+│   └── project_blueprint/
+│       └── v1/             # system.txt, user.txt
+├── tests/
+│   ├── fakes.py
+│   └── test_*.py
 │
 ├── .env
+├── .env.example
 ├── .gitignore
 ├── pyproject.toml
 ├── uv.lock
+├── CHANGELOG.md
+├── docs/
+│   ├── ROADMAP.md
+│   ├── STEPS.md
+│   └── SESSION_HANDOFF.md
 └── README.md
 ```
 
-The structure will grow only when the corresponding architectural concept is introduced.
+The structure grows only when the corresponding architectural concept is introduced. See `docs/STEPS.md` for the granular step-by-step progression (each step's architectural choice and why).
 
 ---
 
