@@ -26,8 +26,9 @@ Each row records a completed increment with its one-sentence summary and the con
 | 19 | Generator interface | Define `ProjectGeneratorInterface` (ABC) and make the service depend on the abstraction, not the implementation. | Dependence inversion, `ABC`/`abstractmethod`, contract-first design, swap providers/fakes |
 | 20 | Composition root | Move object construction into `create_application()` so the whole object graph is assembled in one place. | Composition root, `Application` facade, dependency assembly, single construct point |
 | 21 | PromptManager | Extract prompt management into a dedicated `PromptManager` with versioning stored in `config/prompts.yaml` and the version recorded in telemetry. | Prompt as managed asset, prompt versioning, config-driven version, separation from generation logic |
+| 22 | File-based versioned prompts | Store prompt templates on disk under `prompts/<name>/<version>/` so `config/prompts.yaml` selects the active version without code changes. | Prompt files, template placeholders, config-as-selector, version switching without redeploys |
 
-Legend: completed steps 1–21.
+Legend: completed steps 1–22.
 
 ## Architecture after Step 20
 
@@ -37,7 +38,8 @@ app.py (CLI)
       → ProjectBlueprintService (service.py)
          → ProjectGeneratorInterface (interfaces.py, ABC)
             → ProjectGenerator (generator.py)
-               → ChatOpenAI (LangChain) → OpenRouter
+               ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
+               └── ChatOpenAI (LangChain) → OpenRouter
 ```
 
-**11 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`).
+**12 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`).

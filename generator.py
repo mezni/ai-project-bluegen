@@ -4,7 +4,7 @@ import uuid
 
 from langchain_openai import ChatOpenAI
 
-from config import load_llm_config, load_prompts_config, load_settings
+from config import load_llm_config, load_settings
 from exceptions import ProjectGenerationError
 from interfaces import ProjectGeneratorInterface
 from prompt_manager import PromptManager
@@ -22,7 +22,6 @@ class ProjectGenerator(ProjectGeneratorInterface):
     ) -> None:
         settings = load_settings()
         config = load_llm_config()
-        prompts_config = load_prompts_config()
 
         self.llm = ChatOpenAI(
             model=config.model,
@@ -37,9 +36,6 @@ class ProjectGenerator(ProjectGeneratorInterface):
         )
 
         self.prompt_manager = prompt_manager or PromptManager()
-        self.prompt_version = prompts_config.project_blueprint.get(
-            "version", "v1"
-        )
 
     def generate(self, project_idea: str) -> GenerationResult:
         request_id = str(uuid.uuid4())
@@ -78,7 +74,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
             telemetry = GenerationTelemetry(
                 request_id=request_id,
                 model=self.llm.model_name,
-                prompt_version=self.prompt_version,
+                prompt_version=self.prompt_manager.get_version(),
                 latency_seconds=latency,
             )
 

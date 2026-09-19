@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.21 | File-based versioned prompts | Prompt templates on disk, config selects active version |
 | 0.0.20 | Prompt management | Dedicated PromptManager, prompt versioning, versioned telemetry |
 | 0.0.19 | Application layer | Composition root, app factory, no direct generator construction |
 | 0.0.18 | Interfaces / dependency inversion | ABC, abstract method, service depends on interface |
@@ -30,6 +31,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.21] - 2026-09-19
+
+### File-Based Versioned Prompts
+
+**Feature Domain:** File-based versioned prompts
+
+**Key Objectives:**
+
+* Prompt templates stored as files under `prompts/<name>/<version>/`
+* `config/prompts.yaml` selects the active prompt version and base path
+* Configuration (not code) determines which prompt version is used
+
+### Added
+
+* `prompts/project_blueprint/v1/system.txt` — system prompt template
+* `prompts/project_blueprint/v1/user.txt` — user prompt template with `{project_idea}` placeholder
+
+### Changed
+
+* `prompt_manager.py` rewritten to resolve `base_path/version/{system,user}.txt` from `config/prompts.yaml`, with `get_version()`
+* `config/prompts.yaml` now includes `path: "prompts/project_blueprint"` alongside `version`
+* `generator.py` obtains `prompt_version` from `self.prompt_manager.get_version()`
+* `tests/test_prompt_manager.py` adds a version assertion (`get_version() == "v1"`)
+
+### Removed
+
+* `prompts.py` — replaced by the file-based prompt store
+* Unused `PromptsConfig` + `load_prompts_config()` from `config.py`
+
+### Why
+
+Prompts are now versioned assets on disk; changing `config/prompts.yaml` swaps the active version without code changes, preparing for prompt regression testing and rollback.
 
 ---
 
