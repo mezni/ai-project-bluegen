@@ -3,25 +3,30 @@ import time
 import uuid
 
 from exceptions import ProjectGenerationError
-from interfaces import ProjectGeneratorInterface, StructuredLLMInterface
+from interfaces import (
+    ProjectGeneratorInterface,
+    StructuredLLMInterface,
+)
 from prompt_manager import PromptManager
-from telemetry import GenerationResult, GenerationTelemetry
+from telemetry import (
+    GenerationResult,
+    GenerationTelemetry,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
 class ProjectGenerator(ProjectGeneratorInterface):
+
     def __init__(
         self,
         llm: StructuredLLMInterface,
-        prompt_manager: PromptManager | None = None,
+        prompt_manager: PromptManager,
     ) -> None:
 
         self.llm = llm
-        self.prompt_manager = (
-            prompt_manager or PromptManager()
-        )
+        self.prompt_manager = prompt_manager
 
     def generate(
         self,

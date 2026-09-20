@@ -10,7 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.27 | Full dependency injection | Generator requires injected LLM + prompt manager, fakes isolate tests from the filesystem and model calls |
 | 0.0.26 | Configuration boundary / composition root | Config stays the only source of settings, dependencies injected into the LLM adapter, composition root assembles the graph |
+| 0.0.25 | Structured LLM abstraction | Clean StructuredLLMInterface, structured output owned by the adapter, no conditional branches |
 | 0.0.24 | LLM dependency injection | LLMInterface, injectable LLM, fully testable generator without real calls |
 | 0.0.23 | CLI separation | Dedicated CLI class, app.py reduced to a launcher, replaceable interaction surface |
 | 0.0.22 | Typed request/response models | Input validation schemas, typed API response for the application layer |
@@ -35,6 +37,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.27] - 2026-09-20
+
+### Full Dependency Injection
+
+**Feature Domain:** Full dependency injection
+
+**Key Objectives:**
+
+* Generator requires both `llm` and `prompt_manager` at construction time
+* No optional/defaulted dependencies — composition root supplies everything
+* Unit tests isolated from both the filesystem and model calls via fakes
+
+### Changed
+
+* `generator.py` — `ProjectGenerator.__init__` now takes `llm: StructuredLLMInterface` and `prompt_manager: PromptManager` (both required); the optional `prompt_manager` default and internal `PromptManager()` construction are removed
+* `application.py` — the composition root now passes `prompt_manager=PromptManager()` when assembling the generator
+* `tests/fakes.py` — adds `FakePromptManager` (`get_system_prompt`, `build_user_prompt`, `get_version`)
+* `tests/test_generator.py` — `test_generator_uses_injected_dependencies` injects `FakeLLM` + `FakePromptManager` and asserts telemetry `model == "fake-model"` and `prompt_version == "test-v1"`
+
+### Why
+
+The generator no longer constructs anything itself or touches the filesystem: prompts come from an injected `PromptManager` fake, and generation comes from an injected LLM fake. Tests exercise the full flow in isolation, and production wiring lives solely in the composition root.
 
 ---
 
