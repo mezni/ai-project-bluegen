@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.30 | Structured logging | RequestContextFilter, StructuredLogger helper, request_id/operation fields on every log line, filter-safe formatting |
 | 0.0.29 | Request context | Immutable RequestContext created at the application boundary, request_id flows through the full pipeline |
 | 0.0.28 | Prompt manager interface | PromptManagerInterface contract, generator depends on the abstraction, fake implements the interface |
 | 0.0.27 | Full dependency injection | Generator requires injected LLM + prompt manager, fakes isolate tests from the filesystem and model calls |
@@ -39,6 +40,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.30] - 2026-09-20
+
+### Structured Logging
+
+**Feature Domain:** Structured logging
+
+**Key Objectives:**
+
+* `request_id` and `operation` fields on every log line
+* `StructuredLogger` helper so callers don't build `extra={...}` by hand
+* `RequestContextFilter` keeps ordinary logs from crashing the formatter
+
+### Added
+
+* `logger.py` — `StructuredLogger` wrapping a `logging.Logger` with `info`/`error`/`exception`, each accepting `request_id` and `operation` keyword fields
+* `logging_config.py` — `RequestContextFilter` defaults missing `request_id`/`operation` to `"-"`; `configure_logging()` installs a filtered `StreamHandler` on the root logger (clearing existing handlers)
+
+### Changed
+
+* `generator.py` — logger replaced with `self.logger = StructuredLogger(logging.getLogger(__name__))`; start, LLM-call, completion, and failure logs now emit fields `request_id=context.request_id` and an `operation` label (`generate_blueprint` / `llm_generation`)
+* `cli.py` — `main()` calls `configure_logging()` before running
+
+### Why
+
+Log lines now carry structured context (`request_id`, `operation`) without callers hand-rolling `extra` dicts, and the filter guarantees any log that omits the fields still renders instead of raising. Structured output is safe for production aggregation and tracing.
 
 ---
 

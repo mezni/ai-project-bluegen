@@ -8,13 +8,11 @@ from interfaces import (
     PromptManagerInterface,
     StructuredLLMInterface,
 )
+from logger import StructuredLogger
 from telemetry import (
     GenerationResult,
     GenerationTelemetry,
 )
-
-
-logger = logging.getLogger(__name__)
 
 
 class ProjectGenerator(ProjectGeneratorInterface):
@@ -27,6 +25,10 @@ class ProjectGenerator(ProjectGeneratorInterface):
 
         self.llm = llm
         self.prompt_manager = prompt_manager
+
+        self.logger = StructuredLogger(
+            logging.getLogger(__name__)
+        )
 
     def generate(
         self,
@@ -41,10 +43,10 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 "Project idea cannot be empty."
             )
 
-        logger.info(
-            "Starting blueprint generation | "
-            "request_id=%s",
-            context.request_id,
+        self.logger.info(
+            "Starting blueprint generation",
+            request_id=context.request_id,
+            operation="generate_blueprint",
         )
 
         messages = [
@@ -63,29 +65,29 @@ class ProjectGenerator(ProjectGeneratorInterface):
         start_time = time.perf_counter()
 
         try:
-            logger.info(
-                "Calling structured LLM | "
-                "request_id=%s",
-                context.request_id,
+            self.logger.info(
+                "Calling structured LLM",
+                request_id=context.request_id,
+                operation="llm_generation",
             )
 
             blueprint = self.llm.generate(messages)
 
             latency = time.perf_counter() - start_time
 
-            logger.info(
-                "Blueprint generation completed | "
-                "request_id=%s",
-                context.request_id,
+            self.logger.info(
+                "Blueprint generation completed",
+                request_id=context.request_id,
+                operation="generate_blueprint",
             )
 
         except Exception as exc:
             latency = time.perf_counter() - start_time
 
-            logger.exception(
-                "Blueprint generation failed | "
-                "request_id=%s",
-                context.request_id,
+            self.logger.exception(
+                "Blueprint generation failed",
+                request_id=context.request_id,
+                operation="generate_blueprint",
             )
 
             raise ProjectGenerationError(
