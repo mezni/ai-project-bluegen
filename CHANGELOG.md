@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
-| 0.0.25 | Structured LLM abstraction | Clean StructuredLLMInterface, structured output owned by the adapter, no conditional branches |
+| 0.0.26 | Configuration boundary / composition root | Config stays the only source of settings, dependencies injected into the LLM adapter, composition root assembles the graph |
 | 0.0.24 | LLM dependency injection | LLMInterface, injectable LLM, fully testable generator without real calls |
 | 0.0.23 | CLI separation | Dedicated CLI class, app.py reduced to a launcher, replaceable interaction surface |
 | 0.0.22 | Typed request/response models | Input validation schemas, typed API response for the application layer |
@@ -35,6 +35,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.26] - 2026-09-20
+
+### Configuration Boundary and Composition Root
+
+**Feature Domain:** Configuration boundary / composition root
+
+**Key Objectives:**
+
+* Keep `config.py` as the single configuration boundary (settings + YAML)
+* Inject dependencies into the LLM adapter instead of self-loading them
+* Make the composition root (`create_application`) the only place that assembles the graph
+
+### Changed
+
+* `structured_llm.py` — `LangChainStructuredLLM.__init__` now receives `config: LLMConfig` and `settings: Settings` instead of loading them itself
+* `application.py` — `create_application` loads settings + LLM config, builds `LangChainStructuredLLM(config=..., settings=...)`, and wires the generator; it remains the composition root
+* `generator.py` — `ProjectGenerator` requires an injected `StructuredLLMInterface`; the default `LangChainStructuredLLM()` fallback is removed since the adapter no longer has a no-arg constructor
+
+### Why
+
+Dependencies flow inward instead of being fetched at point of use: `config.py` remains the configuration boundary, adapters receive ready-to-use dependencies, and the only place connecting pieces together is `create_application`. Swapping providers or wiring order is now a single composition-root change, and every layer stays testable with fakes.
 
 ---
 
