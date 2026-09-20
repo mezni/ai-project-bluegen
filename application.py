@@ -1,5 +1,6 @@
 from config import load_llm_config, load_settings
 from container import DependencyContainer
+from context import RequestContext
 from interfaces import ProjectGeneratorInterface
 from schemas import (
     GenerateBlueprintRequest,
@@ -23,10 +24,13 @@ class Application:
         request: GenerateBlueprintRequest,
     ) -> GenerateBlueprintResponse:
 
+        context = RequestContext.create()
+
         result = (
             self.blueprint_service
             .generate_blueprint(
-                request.project_idea
+                request.project_idea,
+                context,
             )
         )
 

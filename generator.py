@@ -1,7 +1,7 @@
 import logging
 import time
-import uuid
 
+from context import RequestContext
 from exceptions import ProjectGenerationError
 from interfaces import (
     ProjectGeneratorInterface,
@@ -31,6 +31,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
     def generate(
         self,
         project_idea: str,
+        context: RequestContext,
     ) -> GenerationResult:
 
         project_idea = project_idea.strip()
@@ -40,11 +41,10 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 "Project idea cannot be empty."
             )
 
-        request_id = str(uuid.uuid4())
-
         logger.info(
-            "Starting blueprint generation | request_id=%s",
-            request_id,
+            "Starting blueprint generation | "
+            "request_id=%s",
+            context.request_id,
         )
 
         messages = [
@@ -64,8 +64,9 @@ class ProjectGenerator(ProjectGeneratorInterface):
 
         try:
             logger.info(
-                "Calling structured LLM | request_id=%s",
-                request_id,
+                "Calling structured LLM | "
+                "request_id=%s",
+                context.request_id,
             )
 
             blueprint = self.llm.generate(messages)
@@ -73,16 +74,18 @@ class ProjectGenerator(ProjectGeneratorInterface):
             latency = time.perf_counter() - start_time
 
             logger.info(
-                "Blueprint generation completed | request_id=%s",
-                request_id,
+                "Blueprint generation completed | "
+                "request_id=%s",
+                context.request_id,
             )
 
         except Exception as exc:
             latency = time.perf_counter() - start_time
 
             logger.exception(
-                "Blueprint generation failed | request_id=%s",
-                request_id,
+                "Blueprint generation failed | "
+                "request_id=%s",
+                context.request_id,
             )
 
             raise ProjectGenerationError(
@@ -90,7 +93,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
             ) from exc
 
         telemetry = GenerationTelemetry(
-            request_id=request_id,
+            request_id=context.request_id,
             model=self.llm.model_name,
             prompt_version=self.prompt_manager.get_version(),
             latency_seconds=latency,

@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.29 | Request context | Immutable RequestContext created at the application boundary, request_id flows through the full pipeline |
 | 0.0.28 | Prompt manager interface | PromptManagerInterface contract, generator depends on the abstraction, fake implements the interface |
 | 0.0.27 | Full dependency injection | Generator requires injected LLM + prompt manager, fakes isolate tests from the filesystem and model calls |
 | 0.0.26 | Configuration boundary / composition root | Config stays the only source of settings, dependencies injected into the LLM adapter, composition root assembles the graph |
@@ -38,6 +39,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.29] - 2026-09-20
+
+### Request Context
+
+**Feature Domain:** Request context
+
+**Key Objectives:**
+
+* Frozen `RequestContext` — the request ID cannot change during processing
+* Context created at the application boundary (start of the use case)
+* `request_id` flows through service, generator, and telemetry
+
+### Added
+
+* `context.py` — frozen `RequestContext` dataclass with `create()` factory generating a `uuid4` request ID
+* `tests/test_context.py` — verifies a 36-character request ID is created and immutability raises `AttributeError`
+
+### Changed
+
+* `application.py` — `generate_blueprint` creates `RequestContext` and passes it to the service
+* `service.py` — `generate_blueprint(project_idea, context)` forwards the context to the generator
+* `interfaces.py` — `ProjectGeneratorInterface.generate` now accepts `context: RequestContext`
+* `generator.py` — no longer crafts its own request ID (`uuid` import removed); logging and telemetry read `context.request_id`
+* `tests/fakes.py` — `FakeProjectGenerator` implements the new signature and echoes `context.request_id`
+* `tests/test_generator.py`, `tests/test_application.py`, `tests/test_service.py` — updated for the new signature and assertions
+
+### Why
+
+Request identity is now owned by the application boundary and immutable for the life of the request, so every downstream layer traces logs and telemetry under the exact same `request_id` without anyone re-deriving it.
 
 ---
 
