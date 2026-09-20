@@ -1,21 +1,21 @@
 from config import load_llm_config, load_settings
-from generator import ProjectGenerator
+from container import DependencyContainer
 from interfaces import ProjectGeneratorInterface
-from prompt_manager import PromptManager
 from schemas import (
     GenerateBlueprintRequest,
     GenerateBlueprintResponse,
     GenerationTelemetryResponse,
 )
 from service import ProjectBlueprintService
-from structured_llm import LangChainStructuredLLM
 
 
 class Application:
+
     def __init__(
         self,
         blueprint_service: ProjectBlueprintService,
     ) -> None:
+
         self.blueprint_service = blueprint_service
 
     def generate_blueprint(
@@ -23,8 +23,11 @@ class Application:
         request: GenerateBlueprintRequest,
     ) -> GenerateBlueprintResponse:
 
-        result = self.blueprint_service.generate_blueprint(
-            request.project_idea
+        result = (
+            self.blueprint_service
+            .generate_blueprint(
+                request.project_idea
+            )
         )
 
         telemetry = GenerationTelemetryResponse(
@@ -45,25 +48,34 @@ class Application:
 
 def create_application(
     generator: ProjectGeneratorInterface | None = None,
+    container: DependencyContainer | None = None,
 ) -> Application:
 
-    if generator is None:
+    if container is None:
         settings = load_settings()
         config = load_llm_config()
 
-        llm = LangChainStructuredLLM(
-            config=config,
+        container = DependencyContainer(
             settings=settings,
+            llm_config=config,
         )
 
-        prompt_manager = PromptManager()
+    if generator is None:
 
-        generator = ProjectGenerator(
+        prompt_manager = (
+            container.create_prompt_manager()
+        )
+
+        llm = (
+            container.create_structured_llm()
+        )
+
+        generator = container.create_generator(
             llm=llm,
             prompt_manager=prompt_manager,
         )
 
-    service = ProjectBlueprintService(
+    service = container.create_service(
         generator
     )
 
