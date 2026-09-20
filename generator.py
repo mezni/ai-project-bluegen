@@ -5,9 +5,9 @@ import uuid
 from exceptions import ProjectGenerationError
 from interfaces import (
     ProjectGeneratorInterface,
+    PromptManagerInterface,
     StructuredLLMInterface,
 )
-from prompt_manager import PromptManager
 from telemetry import (
     GenerationResult,
     GenerationTelemetry,
@@ -22,7 +22,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
     def __init__(
         self,
         llm: StructuredLLMInterface,
-        prompt_manager: PromptManager,
+        prompt_manager: PromptManagerInterface,
     ) -> None:
 
         self.llm = llm

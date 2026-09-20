@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.28 | Prompt manager interface | PromptManagerInterface contract, generator depends on the abstraction, fake implements the interface |
 | 0.0.27 | Full dependency injection | Generator requires injected LLM + prompt manager, fakes isolate tests from the filesystem and model calls |
 | 0.0.26 | Configuration boundary / composition root | Config stays the only source of settings, dependencies injected into the LLM adapter, composition root assembles the graph |
 | 0.0.25 | Structured LLM abstraction | Clean StructuredLLMInterface, structured output owned by the adapter, no conditional branches |
@@ -37,6 +38,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.28] - 2026-09-20
+
+### Prompt Manager Interface
+
+**Feature Domain:** Prompt manager interface
+
+**Key Objectives:**
+
+* Introduce a `PromptManagerInterface` contract
+* Generator depends on the abstraction, not the concrete `PromptManager`
+* Fakes explicitly implement the interface
+
+### Added
+
+* `interfaces.py` — `PromptManagerInterface` with `get_system_prompt()`, `build_user_prompt(project_idea)`, `get_version()`
+
+### Changed
+
+* `prompt_manager.py` — `PromptManager` now implements `PromptManagerInterface`
+* `generator.py` — `ProjectGenerator` accepts `prompt_manager: PromptManagerInterface`; no import or dependency on the concrete `PromptManager`
+* `application.py` — the composition root creates the concrete `PromptManager()` and injects it into the generator
+* `tests/fakes.py` — `FakePromptManager` explicitly implements `PromptManagerInterface`
+
+### Why
+
+The generator is now coupled only to a prompt contract, so the concrete manager is an implementation detail owned by the composition root. Real and fake prompt managers are interchangeable, keeping every layer testable without touching the filesystem.
 
 ---
 
