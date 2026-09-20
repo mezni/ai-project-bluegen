@@ -1,33 +1,39 @@
 # Session Handoff
 
-Date: 2026-09-19
+Date: 2026-09-20
 
 ## Project State
 
 An agentic AI learning project that transforms a simple AI project idea into a structured, implementation-ready architecture blueprint. Built progressively with Python, Pydantic, LangChain, and OpenRouter.
 
-Current stage: **Level 1 — Structured LLM** functional end-to-end, behind a clean layered architecture with fully injected dependencies:
+Current stage: **Level 1 — Structured LLM** functional end-to-end, behind a clean layered architecture with fully injected dependencies, a container-based composition root, request context, and structured logging:
 
 ```text
 app.py (launcher)
    → CLI (cli.py — replaceable presentation layer)
-      → Application (application.py — composition root + NULL object request/response)
+      → Application (application.py — creates RequestContext at the use-case boundary)
          → ProjectBlueprintService (service.py)
             → ProjectGeneratorInterface (interfaces.py, ABC)
                → ProjectGenerator (generator.py)
-                  ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
+                  ├── PromptManagerInterface (interfaces.py, ABC)
+                  │   ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
+                  │   └── FakePromptManager (tests/fakes.py)
                   └── StructuredLLMInterface (interfaces.py, ABC)
-                     ├── LangChainStructuredLLM (structured_llm.py) → ChatOpenAI → OpenRouter
-                     └── FakeLLM (tests/fakes.py)
+                      ├── LangChainStructuredLLM (structured_llm.py) → ChatOpenAI → OpenRouter
+                      └── FakeLLM (tests/fakes.py)
+   object graph assembled by DependencyContainer (container.py) via create_application (application.py)
 ```
 
 Key properties:
 
 * The application flow depends only on typed contracts (`GenerateBlueprintRequest`/`GenerateBlueprintResponse`).
-* The CLI is a replaceable detail — FastAPI/Streamlit/worker can be dropped in without core changes.
-* The generator is fully testable with `FakeLLM`; no OpenRouter call is required to exercise the real generate flow.
+* `config.py` is the single configuration boundary — `Settings` (from `.env`) + `LLMConfig` (from `config/llm.yaml`).
+* `DependencyContainer` knows how to construct infrastructure only; it never executes use cases. The composition root (`create_application`) accepts an injected generator and/or container for tests.
+* `RequestContext` is frozen and created at the application boundary; its `request_id` threads through service → generator → telemetry → logs.
+* Every log line carries `request_id` and `operation` fields via `StructuredLogger` + `RequestContextFilter`; ordinary logs that omit the fields still render.
+* The generator is fully testable with `FakeLLM` + `FakePromptManager`; no filesystem or OpenRouter access is needed to exercise the real generate flow.
 * Structured output is owned by the `LangChainStructuredLLM` adapter, not spread through the generator.
-* Prompts are versioned files on disk; `config/prompts.yaml` selects the active version.
+* Prompts are versioned files on disk; `config/prompts.yaml` selects the active version; the version is recorded in telemetry.
 
 ## Completed
 
@@ -58,8 +64,13 @@ Key properties:
 | 0.0.23 | CLI separation | Dedicated `CLI`, `app.py` reduced to a launcher |
 | 0.0.24 | LLM dependency injection | `LLMInterface`, injectable LLM, fake-based generator test |
 | 0.0.25 | Structured LLM abstraction | `StructuredLLMInterface`, `LangChainStructuredLLM` adapter, no conditional branches |
+| 0.0.26 | Configuration boundary / composition root | LLM adapter receives `config` + `settings` via constructor; generator requires injected LLM |
+| 0.0.27 | Full dependency injection | `ProjectGenerator` requires injected LLM + prompt manager; tests need no filesystem |
+| 0.0.28 | Prompt manager interface | `PromptManagerInterface`; generator depends on abstraction; `FakePromptManager` implements it |
+| 0.0.29 | Request context | Frozen `RequestContext` created at the application boundary; `request_id` flows through the pipeline |
+| 0.0.30 | Structured logging | `StructuredLogger` + `RequestContextFilter`; `request_id`/`operation` on every log line |
 
-Test status: **14 passed**.
+Test status: **16 passed**.
 
 ## Current Structure
 
@@ -67,18 +78,21 @@ Test status: **14 passed**.
 ai-project-bluegen/
 │
 ├── app.py                  # Launcher: from cli import main
-├── cli.py                  # CLI: args → request → application → formatted output (replaceable)
-├── application.py          # Application + create_application (composition root, typed request/response)
-├── service.py              # ProjectBlueprintService (depends on interface)
-├── interfaces.py           # ProjectGeneratorInterface + StructuredLLMInterface (ABCs)
-├── generator.py            # ProjectGenerator: validation, prompts, LLM call, telemetry
-├── structured_llm.py       # LangChainStructuredLLM: ChatOpenAI + with_structured_output
-├── prompt_manager.py       # PromptManager: loads versioned prompt files from config/prompts.yaml
+├── cli.py                  # CLI: configure_logging, args → request → application → formatted output (replaceable)
+├── application.py          # Application + create_application (composition root, creates RequestContext)
+├── container.py            # DependencyContainer: creates prompt manager / structured LLM / generator / service
+├── context.py              # RequestContext (frozen request_id + create())
+├── service.py              # ProjectBlueprintService (forwards context to generator)
+├── interfaces.py           # ProjectGeneratorInterface + StructuredLLMInterface + PromptManagerInterface (ABCs)
+├── generator.py            # ProjectGenerator: still injectable, structured logging via StructuredLogger
+├── structured_llm.py       # LangChainStructuredLLM: ChatOpenAI + with_structured_output (config+settings injected)
+├── prompt_manager.py       # PromptManager: loads versioned prompt files (implements PromptManagerInterface)
+├── logger.py               # StructuredLogger: info/error/exception with request_id/operation extras
 ├── schemas.py              # ProjectBlueprint, GenerateBlueprintRequest/Response, GenerationTelemetryResponse
 ├── exceptions.py           # ProjectGenerationError
 ├── telemetry.py            # GenerationTelemetry, GenerationResult (dataclasses)
-├── logging_config.py       # configure_logging()
-├── config.py               # Settings (env) + LLMConfig (yaml)
+├── logging_config.py       # RequestContextFilter + configure_logging() (StreamHandler, clears handlers)
+├── config.py               # Settings (env) + LLMConfig (yaml) — the configuration boundary
 ├── config/
 │   ├── llm.yaml            # provider, base_url, model, temperature, max_tokens
 │   └── prompts.yaml        # project_blueprint: version + path
@@ -88,24 +102,25 @@ ai-project-bluegen/
 │           ├── system.txt  # system prompt template
 │           └── user.txt    # user prompt template ({project_idea})
 ├── tests/
-│   ├── fakes.py            # FakeLLM (StructuredLLMInterface implementation, no network)
+│   ├── fakes.py            # FakeLLM, FakePromptManager (interface impls), FakeProjectGenerator (no network/filesystem)
 │   ├── test_schemas.py     # request/response schema tests
 │   ├── test_config.py      # LLMConfig validation
 │   ├── test_settings.py    # Settings/.env
 │   ├── test_prompt_manager.py
+│   ├── test_context.py     # RequestContext creation + immutability
 │   ├── test_service.py     # fake generator
-│   ├── test_application.py # fake generator through create_application
-│   └── test_generator.py   # fake LLM through the real generator
+│   ├── test_application.py # fake generator + injected container through create_application
+│   └── test_generator.py   # fake LLM + fake prompt manager through the real generator
 ├── .env                    # OPENROUTER_API_KEY (set), OPENROUTER_MODEL
 ├── .env.example
 ├── .gitignore
 ├── pyproject.toml
 ├── uv.lock
-├── CHANGELOG.md            # 0.0.1–0.0.25 (newest first)
+├── CHANGELOG.md            # 0.0.1–0.0.30 (newest first)
 ├── README.md               # Full 21-section project document
 ├── docs/
 │   ├── ROADMAP.md          # 42-step roadmap with status markers
-│   ├── STEPS.md            # granular learning steps 1–26 with "choices + why"
+│   ├── STEPS.md            # granular learning steps 1–31 with "choices + why"
 │   └── SESSION_HANDOFF.md  # this file
 └── .venv/
 ```
@@ -117,11 +132,15 @@ ai-project-bluegen/
 * Each increment of work = next `0.0.x` release; entries added to `CHANGELOG.md` only as work completes.
 * Building convention: `concept → implementation → failure modes` at each step.
 * Not jumping directly to a multi-agent system; evolving Level 1 → pipeline → agentic.
-* Depend on abstractions (`ProjectGeneratorInterface`, `StructuredLLMInterface`), inject at the composition root.
+* Depend on abstractions (`ProjectGeneratorInterface`, `StructuredLLMInterface`, `PromptManagerInterface`), inject at the composition root.
+* `config.py` is the single configuration boundary — settings (`Settings`) and LLM config (`LLMConfig`) are loaded there and injected, never fetched at point of use.
+* `DependencyContainer` constructs infrastructure (`PromptManager`, `LangChainStructuredLLM`, `ProjectGenerator`, `ProjectBlueprintService`); it never runs the use case. Tests can inject a container to avoid touching `.env`/`config/llm.yaml`.
 * Structured output is an adapter concern (`LangChainStructuredLLM`) — the generator is provider-agnostic.
 * Prompts are versioned files (`prompts/<name>/<version>/`); `config/prompts.yaml` selects the active version; the version is recorded in telemetry.
 * The interaction surface (`CLI`) is replaceable: the application speaks typed request/response contracts.
 * LLM config lives in `config/llm.yaml` (typed `LLMConfig`); secrets live in `.env` (typed `Settings`).
+* `RequestContext` is a frozen dataclass created at the application boundary; the `request_id` it owns is the one used everywhere (service → generator → telemetry → logs).
+* All application logging goes through `StructuredLogger` with `request_id`/`operation` extras; `RequestContextFilter` keeps non-application logs from crashing the formatter.
 * **Never invent token counts** — token fields stay `None` unless the provider reports usage.
 * Free model in use: `nvidia/nemotron-3-ultra-550b-a55b:free` (confirmed structured output). Fallback candidate: `openai/gpt-4o-mini`.
 
@@ -140,7 +159,7 @@ Python `>=3.12`.
 
 ```text
 uv run python app.py "Build an AI system that classifies corporate documents."
-uv run pytest        # 14 passed
+uv run pytest        # 16 passed
 ```
 
 ## Next Steps — From STEPS.md (Roadmap Step 7: Complete Single-Agent Blueprint)
@@ -177,9 +196,9 @@ Objectives:
 
 ## Immediate Follow-ups
 
-1. Expand `schemas.py` toward the full blueprint (Roadmap Step 7) → next release 0.0.26.
-2. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.25).
-3. Keep `docs/STEPS.md` and `docs/ROADMAP.md` status markers current (Roadmap Step 23 Observability is in progress ◐).
+1. Expand `schemas.py` toward the full blueprint (Roadmap Step 7) → next release 0.0.31.
+2. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.30).
+3. Keep `docs/STEPS.md` and `docs/ROADMAP.md` status markers current (Roadmap Step 23 Observability completed ✅; broader traces/metrics/token usage belong to Phase 39 Production telemetry).
 4. Do not create agents/, tools/, api/ directories yet — they come later per plan.
 
 ## Todo
@@ -188,5 +207,5 @@ Objectives:
 - [ ] Step 8 — Prompt engineering v2 (`prompts/<name>/v2` with few-shot examples)
 - [ ] Step 9 — Validation layer (deterministic Python validation)
 - [ ] Integration tests for the real LLM path (free model)
-- [ ] Roadmap Step 23 (in progress) — Observability: logging + latency + prompt_version done; token usage, traces, metrics pending
+- [ ] Observability follow-ups — token usage capture from the provider, traces, metrics (Roadmap Phase 39)
 - [ ] Roadmap Step 11+ — per `docs/ROADMAP.md`

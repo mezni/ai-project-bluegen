@@ -31,22 +31,31 @@ Each row records a completed increment with its one-sentence summary, the archit
 | 24 | CLI separation | Move presentation into a dedicated `CLI` and reduce `app.py` to a launcher. | **Replaceable interaction surface**: the CLI is now a plugin-like detail — the app flow depends only on typed request/response contracts, so swapping in FastAPI, Streamlit, or a worker is a presentation-only change; `app.py` as a pure launcher keeps it obvious. |
 | 25 | LLM dependency injection | Introduce `LLMInterface` and let `ProjectGenerator` accept an injected LLM so the full generate flow is testable without OpenRouter. | **Fake-it-through-the-contract**: depending on `LLMInterface.invoke` means tests can substitute `FakeLLM` and exercise the real generator logic (validation, prompts, telemetry, errors) with zero network calls; production builds the real `ChatOpenAI` at the composition root. |
 | 26 | Structured LLM abstraction | Own structured output in a dedicated adapter and remove the temporary `llm is None` branch from the generator. | **Adapter owns the framework**: `StructuredLLMInterface` (with a `model_name` property) means `with_structured_output` lives only inside `LangChainStructuredLLM`, the generator stays provider-agnostic, and fakes implement the same uniform contract — no conditional wiring. |
+| 27 | Configuration boundary and composition root | Keep `config.py` as the only source of settings/YAML and give the composition root (`create_application`) the job of assembling the graph. | **Inject, don't fetch**: `LangChainStructuredLLM` now receives `LLMConfig` + `Settings` through its constructor instead of calling `load_*` itself — dependencies flow inward; `create_application` is the only place that wires pieces together. |
+| 28 | Full dependency injection | Make `ProjectGenerator` require both an LLM and a prompt manager, with no optional/default construction, and add a fake prompt manager. | **No hidden factories**: the generator no longer constructs `PromptManager()` internally, and tests run against `FakeLLM` + `FakePromptManager` — the map is injected, the territory is not needed: no filesystem, no network. |
+| 29 | Prompt manager interface | Add `PromptManagerInterface` and make the generator depend on the abstraction, not the concrete `PromptManager`. | **Contract over implementation**: dependency inversion applied to prompts — fakes (`FakePromptManager`) explicitly implement the interface and the concrete manager becomes an implementation detail of the composition root. |
+| 30 | Request context | Introduce a frozen `RequestContext` created at the application boundary; the whole pipeline (service → generator → telemetry) uses its `request_id`. | **Identity owned up front**: the request ID is created once, at the start of the use case, and never re-derived downstream — immutable (`frozen=True`) so it cannot change mid-request, giving logs and telemetry a single correlation key. |
+| 31 | Structured logging | Add `StructuredLogger` (request_id/operation extras) and `RequestContextFilter` so every log line is traceable and ordinary logs can't crash the formatter. | **Extra fields as data**: callers pass structured fields instead of hand-formatting strings; the filter defaults missing fields to `"-"` so library/third-party logs still render — structured, safe-to-aggregate output without disrupting existing logging. |
 
-Legend: completed steps 1–26.
+Legend: completed steps 1–31.
 
-## Architecture after Step 26
+## Architecture after Step 31
 
 ```text
 app.py (launcher)
-   → CLI (cli.py — replaceable presentation layer)
-      → Application (application.py, composition root, typed request/response)
+   → CLI (cli.py — replaceable presentation layer, configure_logging at entry)
+      → Application (application.py — creates RequestContext, typed request/response)
          → ProjectBlueprintService (service.py)
             → ProjectGeneratorInterface (interfaces.py, ABC)
                → ProjectGenerator (generator.py)
-                  ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
+                  ├── PromptManagerInterface (interfaces.py, ABC)
+                  │   ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
+                  │   └── FakePromptManager (tests/fakes.py)
                   └── StructuredLLMInterface (interfaces.py, ABC)
-                     ├── LangChainStructuredLLM (structured_llm.py) → ChatOpenAI → OpenRouter
-                     └── FakeLLM (tests/fakes.py)
+                      ├── LangChainStructuredLLM (structured_llm.py) → ChatOpenAI → OpenRouter
+                      └── FakeLLM (tests/fakes.py)
+   object graph assembled by DependencyContainer (container.py) via create_application (application.py)
+   structured logging: StructuredLogger (logger.py) + RequestContextFilter (logging_config.py)
 ```
 
-**14 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_generator.py`).
+**16 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_context.py`, `test_generator.py`).
