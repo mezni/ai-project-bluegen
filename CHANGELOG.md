@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.31 | Generation event | GenerationEvent observability model, immutable telemetry, event test coverage |
 | 0.0.30 | Structured logging | RequestContextFilter, StructuredLogger helper, request_id/operation fields on every log line, filter-safe formatting |
 | 0.0.29 | Request context | Immutable RequestContext created at the application boundary, request_id flows through the full pipeline |
 | 0.0.28 | Prompt manager interface | PromptManagerInterface contract, generator depends on the abstraction, fake implements the interface |
@@ -40,6 +41,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.31] - 2026-09-21
+
+### Generation Event
+
+**Feature Domain:** Generation event
+
+**Key Objectives:**
+
+* `GenerationEvent` observability model — a single record of a generation attempt (success or failure) that can be emitted for tracing
+* Frozen telemetry dataclasses so records cannot be mutated after creation
+* Test coverage for both the success and failure event shapes
+
+### Added
+
+* `telemetry.py` — `GenerationEvent` with `request_id`, `operation`, `model`, `prompt_version`, `status`, `latency_seconds`, optional token fields, and optional `error_type` for failure representation
+* `tests/test_telemetry.py` — `test_generation_event_contains_observability_data` asserts all success fields; `test_generation_event_can_represent_failure` asserts the failure shape with `error_type`
+
+### Changed
+
+* `telemetry.py` — `GenerationTelemetry` is now frozen (`@dataclass(frozen=True)`) to keep telemetry immutable
+
+### Why
+
+Observability needs a single, structured record of each generation attempt — including failures — rather than only a success-only summary. A frozen `GenerationEvent` carrying `status` and optional `error_type` prepares the pipeline for event emission and tracing while telemetry stays honest (tokens remain optional).
 
 ---
 
