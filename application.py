@@ -74,9 +74,14 @@ def create_application(
             container.create_structured_llm()
         )
 
+        telemetry_recorder = (
+            container.create_telemetry_recorder()
+        )
+
         generator = container.create_generator(
             llm=llm,
             prompt_manager=prompt_manager,
+            telemetry_recorder=telemetry_recorder,
         )
 
     service = container.create_service(

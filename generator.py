@@ -7,9 +7,11 @@ from interfaces import (
     ProjectGeneratorInterface,
     PromptManagerInterface,
     StructuredLLMInterface,
+    TelemetryRecorderInterface,
 )
 from logger import StructuredLogger
 from telemetry import (
+    GenerationEvent,
     GenerationResult,
     GenerationTelemetry,
 )
@@ -21,10 +23,12 @@ class ProjectGenerator(ProjectGeneratorInterface):
         self,
         llm: StructuredLLMInterface,
         prompt_manager: PromptManagerInterface,
+        telemetry_recorder: TelemetryRecorderInterface,
     ) -> None:
 
         self.llm = llm
         self.prompt_manager = prompt_manager
+        self.telemetry_recorder = telemetry_recorder
 
         self.logger = StructuredLogger(
             logging.getLogger(__name__)
@@ -100,6 +104,17 @@ class ProjectGenerator(ProjectGeneratorInterface):
             prompt_version=self.prompt_manager.get_version(),
             latency_seconds=latency,
         )
+
+        event = GenerationEvent(
+            request_id=context.request_id,
+            operation="project_blueprint_generation",
+            model=self.llm.model_name,
+            prompt_version=self.prompt_manager.get_version(),
+            status="success",
+            latency_seconds=latency,
+        )
+
+        self.telemetry_recorder.record(event)
 
         return GenerationResult(
             blueprint=blueprint,

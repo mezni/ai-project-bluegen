@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.32 | Telemetry recorder | TelemetryRecorderInterface contract, in-memory recorder, generator records success events |
 | 0.0.31 | Generation event | GenerationEvent observability model, immutable telemetry, event test coverage |
 | 0.0.30 | Structured logging | RequestContextFilter, StructuredLogger helper, request_id/operation fields on every log line, filter-safe formatting |
 | 0.0.29 | Request context | Immutable RequestContext created at the application boundary, request_id flows through the full pipeline |
@@ -41,6 +42,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.32] - 2026-09-21
+
+### Telemetry Recorder
+
+**Feature Domain:** Telemetry recorder
+
+**Key Objectives:**
+
+* `TelemetryRecorderInterface` contract so event emission is injectable
+* `InMemoryTelemetryRecorder` — a deterministic recorder for now, replaced by external sinks later
+* The generator records a success `GenerationEvent` after the LLM call
+
+### Added
+
+* `interfaces.py` — `TelemetryRecorderInterface` with `record(event: GenerationEvent) -> None`
+* `telemetry_recorder.py` — `InMemoryTelemetryRecorder` storing events in a list
+* `tests/test_telemetry_recorder.py` — verifies the recorder stores the event and returns it as-is
+
+### Changed
+
+* `generator.py` — `ProjectGenerator.__init__` now requires an injected `telemetry_recorder: TelemetryRecorderInterface`; after the LLM call succeeds it records a `GenerationEvent` (`operation="project_blueprint_generation"`, `status="success"`, latency/model/prompt version)
+* `container.py` — adds `create_telemetry_recorder()` and passes the recorder into `create_generator()`
+* `application.py` — the composition root creates the recorder before assembling the generator
+* `tests/test_generator.py` — instantiates `InMemoryTelemetryRecorder`, asserts exactly one event recorded with the matching `request_id`, `operation`, `status`, `model`, and `prompt_version`
+
+### Why
+
+Observability events are now emitted through an injectable contract rather than being fire-and-forget inside the generator. The in-memory recorder keeps tests deterministic and isolates event emission, and it can be swapped for a queue, file, or tracing backend without touching the generator.
 
 ---
 
