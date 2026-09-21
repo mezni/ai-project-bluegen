@@ -36,10 +36,16 @@ Each row records a completed increment with its one-sentence summary, the archit
 | 29 | Prompt manager interface | Add `PromptManagerInterface` and make the generator depend on the abstraction, not the concrete `PromptManager`. | **Contract over implementation**: dependency inversion applied to prompts — fakes (`FakePromptManager`) explicitly implement the interface and the concrete manager becomes an implementation detail of the composition root. |
 | 30 | Request context | Introduce a frozen `RequestContext` created at the application boundary; the whole pipeline (service → generator → telemetry) uses its `request_id`. | **Identity owned up front**: the request ID is created once, at the start of the use case, and never re-derived downstream — immutable (`frozen=True`) so it cannot change mid-request, giving logs and telemetry a single correlation key. |
 | 31 | Structured logging | Add `StructuredLogger` (request_id/operation extras) and `RequestContextFilter` so every log line is traceable and ordinary logs can't crash the formatter. | **Extra fields as data**: callers pass structured fields instead of hand-formatting strings; the filter defaults missing fields to `"-"` so library/third-party logs still render — structured, safe-to-aggregate output without disrupting existing logging. |
+| 32 | Generation event | Add a frozen `GenerationEvent` observability model representing one generation attempt (status, latency, optional tokens, `error_type`), plus success/failure event tests. | **Event as the unit of observability**: a single immutable record captures an attempt — including failures via `error_type` — instead of only a success summary; `frozen=True` prevents post-hoc mutation, and the shape is what later sinks (logs/traces) will consume. |
+| 33 | Telemetry recorder | Add `TelemetryRecorderInterface` + `InMemoryTelemetryRecorder`; the generator records a success event after the LLM call. | **Emit via contract**: the generator depends on a recorder interface, so event emission is injectable and testable with an in-memory sink — recording is infrastructure, not generation logic. |
+| 34 | Token usage tracking | Add `LLMUsage`; `StructuredLLMInterface.generate()` returns `(blueprint, usage)`; the adapter enables `include_raw` to read real provider `usage_metadata`. | **Honest usage at the source**: usage comes from the provider response, not from guesses; the adapter owns LangChain's `include_raw` mechanics so counts are real and stay `None` when absent — the "never invent token counts" rule. |
+| 35 | Cost calculation | Add deterministic `CostCalculator` (`ModelPricing` → `GenerationCost`) and typed pricing config (`config/pricing.yaml`). | **Cost as math + config**: per-million-token rates are configuration, not code, so stale commercial prices are never embedded; the calculator is pure deterministic Python — AI reasons, code guarantees. |
+| 36 | Cost on events | The generator computes cost from usage + injected pricing and records it on the event; the composition root validates the configured model has pricing. | **Cost wired at the root**: `ModelPricing` is looked up from config by the composition root and injected — no per-model pricing branches in the generator; a missing pricing entry fails loudly instead of silently running unmeasured. |
+| 37 | Generic telemetry event | Rename `GenerationEvent` → `TelemetryEvent`: add `event_type` and make generation-specific fields (`model`, `prompt_version`, tokens, cost) optional. | **One event for the whole pipeline**: a single generic record serves generation, tool calls, and agents under one `request_id`; `event_type` discriminates, and fields are populated only when relevant — the recorder contract stops leaking generation vocabulary. |
 
-Legend: completed steps 1–31.
+Legend: completed steps 1–37.
 
-## Architecture after Step 31
+## Architecture after Step 37
 
 ```text
 app.py (launcher)
@@ -51,11 +57,16 @@ app.py (launcher)
                   ├── PromptManagerInterface (interfaces.py, ABC)
                   │   ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
                   │   └── FakePromptManager (tests/fakes.py)
-                  └── StructuredLLMInterface (interfaces.py, ABC)
-                      ├── LangChainStructuredLLM (structured_llm.py) → ChatOpenAI → OpenRouter
-                      └── FakeLLM (tests/fakes.py)
+                  ├── StructuredLLMInterface (interfaces.py, ABC)
+                  │   ├── LangChainStructuredLLM (structured_llm.py) → ChatOpenAI → OpenRouter
+                  │   └── FakeLLM (tests/fakes.py)
+                  ├── TelemetryRecorderInterface (interfaces.py, ABC)
+                  │   └── InMemoryTelemetryRecorder (telemetry_recorder.py)
+                  ├── CostCalculator (cost.py — deterministic math)
+                  └── ModelPricing (from config/pricing.yaml via composition root)
    object graph assembled by DependencyContainer (container.py) via create_application (application.py)
    structured logging: StructuredLogger (logger.py) + RequestContextFilter (logging_config.py)
+   observability events: TelemetryEvent (telemetry.py) — event_type, usage (tokens), cost
 ```
 
-**16 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_context.py`, `test_generator.py`).
+**23 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_context.py`, `test_generator.py`, `test_telemetry.py`, `test_telemetry_recorder.py`, `test_cost.py`).

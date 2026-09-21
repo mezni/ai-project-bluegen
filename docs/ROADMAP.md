@@ -43,7 +43,7 @@
 | 37 | CI/CD | GitHub Actions, tests, linting, deployment pipeline | ⬜ |
 | 38 | Containerization | Docker, environment configuration | ⬜ |
 | 39 | Production telemetry | Tracing, metrics, dashboards, LLM monitoring | ⬜ |
-| 40 | Cost / FinOps | Token usage, model cost, cost per blueprint, optimization | ⬜ |
+| 40 | Cost / FinOps | Token usage, model cost, cost per blueprint, optimization | ◐ |
 | 41 | Production evaluation | Automated quality gates before accepting a blueprint | ⬜ |
 | 42 | Final production architecture | Put everything together into a production-grade agentic system | ⬜ |
 
