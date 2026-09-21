@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.35 | Cost on events | Generator computes generation cost, cost fields on GenerationEvent, pricing wired via composition root |
 | 0.0.34 | Cost calculation | CostCalculator, deterministic cost math, pricing config with placeholder values |
 | 0.0.33 | Token usage tracking | LLMUsage model, include_raw structured output, real provider token counts on telemetry + events |
 | 0.0.32 | Telemetry recorder | TelemetryRecorderInterface contract, in-memory recorder, generator records success events |
@@ -44,6 +45,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.35] - 2026-09-21
+
+### Cost on Events
+
+**Feature Domain:** Cost on events
+
+**Key Objectives:**
+
+* The generator now computes generation cost and attaches it to the recorded event and telemetry
+* Pricing is injected from configuration via the composition root — no pricing logic inside the generator
+* Running without pricing for the configured model fails loudly instead of silently
+
+### Added
+
+* `GenerationEvent` cost fields — `input_cost`, `output_cost`, `total_cost` (optional, `None` when token usage is missing)
+
+### Changed
+
+* `generator.py` — `ProjectGenerator` now requires injected `cost_calculator: CostCalculator` and `model_pricing: ModelPricing`; after the LLM call it computes cost only when both input and output token counts are present, and records the cost values on the `GenerationEvent`
+* `container.py` — adds `create_cost_calculator()`; the generator factory now receives the calculator and pricing
+* `application.py` — composition root loads `load_pricing_config()`, validates the configured `llm_config.model` has pricing (raising `ValueError` otherwise), converts the `ModelPricingConfig` into a `ModelPricing`, and injects both
+* `config/pricing.yaml` — adds the active model `nvidia/nemotron-3-ultra-550b-a55b:free` (zero-cost placeholder)
+* `tests/test_generator.py` — asserts `input_cost == 0.0001`, `output_cost == 0.0001`, `total_cost == 0.0002` on the recorded event
+* `tests/test_config.py` — `test_load_pricing_config` and `test_pricing_contains_configured_model` (guards against removing the model's pricing entry)
+
+### Why
+
+Cost is a per-model, config-driven fact, not code: the generator stays a pure consumer of `CostCalculator` + `ModelPricing`. Because cost depends on token usage, it stays `None` when the provider reports no usage. The missing-model guard prevents the application from silently running unmeasured.
 
 ---
 

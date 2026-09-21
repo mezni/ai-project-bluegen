@@ -2,6 +2,7 @@ import logging
 import time
 
 from context import RequestContext
+from cost import CostCalculator, ModelPricing
 from exceptions import ProjectGenerationError
 from interfaces import (
     ProjectGeneratorInterface,
@@ -24,11 +25,15 @@ class ProjectGenerator(ProjectGeneratorInterface):
         llm: StructuredLLMInterface,
         prompt_manager: PromptManagerInterface,
         telemetry_recorder: TelemetryRecorderInterface,
+        cost_calculator: CostCalculator,
+        model_pricing: ModelPricing,
     ) -> None:
 
         self.llm = llm
         self.prompt_manager = prompt_manager
         self.telemetry_recorder = telemetry_recorder
+        self.cost_calculator = cost_calculator
+        self.model_pricing = model_pricing
 
         self.logger = StructuredLogger(
             logging.getLogger(__name__)
@@ -108,6 +113,18 @@ class ProjectGenerator(ProjectGeneratorInterface):
             total_tokens=usage.total_tokens,
         )
 
+        cost = None
+
+        if (
+            usage.input_tokens is not None
+            and usage.output_tokens is not None
+        ):
+            cost = self.cost_calculator.calculate(
+                pricing=self.model_pricing,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+            )
+
         event = GenerationEvent(
             request_id=context.request_id,
             operation="project_blueprint_generation",
@@ -118,6 +135,21 @@ class ProjectGenerator(ProjectGeneratorInterface):
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             total_tokens=usage.total_tokens,
+            input_cost=(
+                cost.input_cost
+                if cost is not None
+                else None
+            ),
+            output_cost=(
+                cost.output_cost
+                if cost is not None
+                else None
+            ),
+            total_cost=(
+                cost.total_cost
+                if cost is not None
+                else None
+            ),
         )
 
         self.telemetry_recorder.record(event)
