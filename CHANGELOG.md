@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.33 | Token usage tracking | LLMUsage model, include_raw structured output, real provider token counts on telemetry + events |
 | 0.0.32 | Telemetry recorder | TelemetryRecorderInterface contract, in-memory recorder, generator records success events |
 | 0.0.31 | Generation event | GenerationEvent observability model, immutable telemetry, event test coverage |
 | 0.0.30 | Structured logging | RequestContextFilter, StructuredLogger helper, request_id/operation fields on every log line, filter-safe formatting |
@@ -42,6 +43,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.33] - 2026-09-21
+
+### Token Usage Tracking
+
+**Feature Domain:** Token usage tracking
+
+**Key Objectives:**
+
+* `LLMUsage` model surfaces real provider-reported token counts through the LLM abstraction
+* The `StructuredLLMInterface.generate()` contract now returns `(blueprint, usage)` instead of only the blueprint
+* Generator telemetry and events carry `input_tokens`, `output_tokens`, and `total_tokens` — never invented numbers
+
+### Added
+
+* `interfaces.py` — frozen `LLMUsage` dataclass with optional `input_tokens` / `output_tokens` / `total_tokens`
+
+### Changed
+
+* `interfaces.py` — `StructuredLLMInterface.generate()` now returns `tuple[ProjectBlueprint, LLMUsage]`
+* `structured_llm.py` — `with_structured_output(ProjectBlueprint, include_raw=True)` so both the parsed blueprint and the raw response metadata are available; `generate()` reads `usage_metadata` from the raw response and returns a `LLMUsage` (empty when metadata is absent)
+* `generator.py` — unpacks `blueprint, usage = self.llm.generate(messages)`; the `GenerationTelemetry` and success `GenerationEvent` now include the real token counts from usage
+* `tests/fakes.py` — `FakeLLM.generate()` returns a blueprint plus `LLMUsage(input=100, output=50, total=150)`
+* `tests/test_generator.py` — asserts `result.telemetry.input_tokens == 100`, `output_tokens == 50`, `total_tokens == 150`, and the same on the recorded event
+
+### Why
+
+The blueprint alone discards provider-reported usage, so cost and token tracking stayed empty forever. Now the LLM abstraction is honest about usage: counts flow through telemetry and events when the provider reports them, and stay `None` otherwise — no invented figures (consistent with the honest-token-tracking principle).
 
 ---
 

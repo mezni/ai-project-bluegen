@@ -75,7 +75,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 operation="llm_generation",
             )
 
-            blueprint = self.llm.generate(messages)
+            blueprint, usage = self.llm.generate(messages)
 
             latency = time.perf_counter() - start_time
 
@@ -103,6 +103,9 @@ class ProjectGenerator(ProjectGeneratorInterface):
             model=self.llm.model_name,
             prompt_version=self.prompt_manager.get_version(),
             latency_seconds=latency,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
         )
 
         event = GenerationEvent(
@@ -112,6 +115,9 @@ class ProjectGenerator(ProjectGeneratorInterface):
             prompt_version=self.prompt_manager.get_version(),
             status="success",
             latency_seconds=latency,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
         )
 
         self.telemetry_recorder.record(event)
