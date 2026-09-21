@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.36 | Generic telemetry event | GenerationEvent → TelemetryEvent, event_type discriminator, reusable across generation/tool calls |
 | 0.0.35 | Cost on events | Generator computes generation cost, cost fields on GenerationEvent, pricing wired via composition root |
 | 0.0.34 | Cost calculation | CostCalculator, deterministic cost math, pricing config with placeholder values |
 | 0.0.33 | Token usage tracking | LLMUsage model, include_raw structured output, real provider token counts on telemetry + events |
@@ -45,6 +46,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.36] - 2026-09-21
+
+### Generic Telemetry Event
+
+**Feature Domain:** Generic telemetry event
+
+**Key Objectives:**
+
+* Replace the generation-specific `GenerationEvent` with a reusable `TelemetryEvent`
+* `event_type` discriminates what happened (generation, tool call, ...) so the same recorder serves the whole pipeline
+* Generation-specific fields (`model`, `prompt_version`, tokens, costs) become optional and stay populated only when relevant
+
+### Changed
+
+* `telemetry.py` — `GenerationEvent` removed; `TelemetryEvent` added with `request_id`, `event_type`, `operation`, `status`, `latency_seconds` as required fields and optional `model` / `prompt_version` / token / cost / `error_type` fields
+* `interfaces.py` — `TelemetryRecorderInterface.record()` now takes a `TelemetryEvent`
+* `telemetry_recorder.py` — `InMemoryTelemetryRecorder` stores `TelemetryEvent`s
+* `generator.py` — records a `TelemetryEvent` with `event_type="generation"` and `operation="project_blueprint_generation"`
+* `tests/test_telemetry.py` — rewritten: asserts full generation observability data (including `event_type` and `total_cost`) and a generic `tool_call` event where `model` and `input_tokens` default to `None`
+* `tests/test_telemetry_recorder.py` — updated to record a `TelemetryEvent`
+
+### Why
+
+Observability should not leak generation-specific vocabulary into the recorder contract. A single generic event type lets agents, tools, and the LLM generation path emit uniform records through one recorder, with `event_type` distinguishing them — the precondition for tracing the whole pipeline under one `request_id`.
 
 ---
 

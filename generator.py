@@ -12,9 +12,9 @@ from interfaces import (
 )
 from logger import StructuredLogger
 from telemetry import (
-    GenerationEvent,
     GenerationResult,
     GenerationTelemetry,
+    TelemetryEvent,
 )
 
 
@@ -125,13 +125,14 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 output_tokens=usage.output_tokens,
             )
 
-        event = GenerationEvent(
+        event = TelemetryEvent(
             request_id=context.request_id,
+            event_type="generation",
             operation="project_blueprint_generation",
-            model=self.llm.model_name,
-            prompt_version=self.prompt_manager.get_version(),
             status="success",
             latency_seconds=latency,
+            model=self.llm.model_name,
+            prompt_version=self.prompt_manager.get_version(),
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             total_tokens=usage.total_tokens,
