@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.34 | Cost calculation | CostCalculator, deterministic cost math, pricing config with placeholder values |
 | 0.0.33 | Token usage tracking | LLMUsage model, include_raw structured output, real provider token counts on telemetry + events |
 | 0.0.32 | Telemetry recorder | TelemetryRecorderInterface contract, in-memory recorder, generator records success events |
 | 0.0.31 | Generation event | GenerationEvent observability model, immutable telemetry, event test coverage |
@@ -43,6 +44,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.34] - 2026-09-21
+
+### Cost Calculation
+
+**Feature Domain:** Cost calculation
+
+**Key Objectives:**
+
+* `CostCalculator` computes generation cost from token usage and model pricing
+* Pricing lives in configuration, not hard-coded in Python — zero placeholders avoid embedding potentially outdated commercial rates
+* Deterministic, tested math
+
+### Added
+
+* `cost.py` — frozen `ModelPricing` (input/output cost per million tokens), frozen `GenerationCost` (input, output, total), and `CostCalculator.calculate(pricing, input_tokens, output_tokens)`
+* `config/pricing.yaml` — placeholder pricing (`0.0`) for `openai/gpt-4o-mini`; to be populated with verified rates later
+* `config.py` — `ModelPricingConfig` (non-negative rate fields), `PricingConfig` (model → pricing mapping), `PRICING_CONFIG_PATH`, and `load_pricing_config()` with the same missing/empty guards as `load_llm_config()`
+* `tests/test_cost.py` — asserts per-million math yields correct input/output/total costs, and that zero tokens cost zero
+
+### Why
+
+Token usage is now measured; cost is the next step. Calculation is pure deterministic math (the "AI for reasoning, code for guarantees" rule), so it belongs in a plain class. Pricing is deliberately kept out of the generator and out of code — no hard-coded per-model price branches — and sourced from configuration where it can later be verified and updated centrally.
 
 ---
 
