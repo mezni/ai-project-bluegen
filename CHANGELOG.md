@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.39 | Parent span linkage | TelemetryEvent + Span carry parent_span_id; Span.start() accepts an optional parent for trace tree stitching |
 | 0.0.38 | Span helper | `Span` dataclass wraps span start/finish into a TelemetryEvent; generator uses it instead of manual event construction |
 | 0.0.37 | Trace + span IDs | RequestContext gains trace_id + create_span_id(), TelemetryEvent carries trace_id/span_id for per-operation tracing |
 | 0.0.36 | Generic telemetry event | GenerationEvent → TelemetryEvent, event_type discriminator, reusable across generation/tool calls |
@@ -51,7 +52,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [0.0.38] - 2026-09-23
+## [0.0.39] - 2026-09-23
+
+### Parent Span Linkage
+
+**Feature Domain:** Parent span linkage
+
+**Key Objectives:**
+
+* `TelemetryEvent` carries `parent_span_id` so child operations can be stitched into a trace tree
+* `Span.start()` accepts an optional `parent_span_id` so nested spans are expressible declaratively
+* A parent/child test proves the tree relationships (parent chain, shared trace)
+
+### Added
+
+* `tests/test_tracing.py` — `test_span_records_parent_span`: root span has `parent_span_id is None`, child links to the parent's `span_id`, and both share the same `trace_id`
+
+### Changed
+
+* `telemetry.py` — `TelemetryEvent` now requires `parent_span_id` (`str | None`) after `span_id`
+* `tracing.py` — `Span` gains a `parent_span_id` field; `Span.start(..., parent_span_id=None)` records it; `finish()` passes it through to the `TelemetryEvent`
+* `tests/test_telemetry.py`, `tests/test_telemetry_recorder.py` — event constructions pass `parent_span_id=None`
+
+### Why
+
+Trace trees need more than shared `request_id`/`trace_id`: knowing which span is the parent lets a collector reconstruct the call graph (agent → generation, orchestrator → tool call). With `parent_span_id` on both `Span` and `TelemetryEvent`, nesting is handled by the helper rather than hand-wired per call site.
+
+---
 
 ### Span Helper
 

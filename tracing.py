@@ -13,6 +13,7 @@ class Span:
     event_type: str
     operation: str
     span_id: str
+    parent_span_id: str | None
     start_time: float
 
     @classmethod
@@ -22,6 +23,7 @@ class Span:
         recorder: TelemetryRecorderInterface,
         event_type: str,
         operation: str,
+        parent_span_id: str | None = None,
     ) -> "Span":
         return cls(
             context=context,
@@ -29,6 +31,7 @@ class Span:
             event_type=event_type,
             operation=operation,
             span_id=context.create_span_id(),
+            parent_span_id=parent_span_id,
             start_time=time.perf_counter(),
         )
 
@@ -56,6 +59,7 @@ class Span:
             request_id=self.context.request_id,
             trace_id=self.context.trace_id,
             span_id=self.span_id,
+            parent_span_id=self.parent_span_id,
             event_type=self.event_type,
             operation=self.operation,
             status=status,

@@ -33,6 +33,38 @@ def test_span_records_success_event():
     assert event.latency_seconds >= 0
 
 
+def test_span_records_parent_span():
+    context = RequestContext.create()
+    recorder = InMemoryTelemetryRecorder()
+
+    parent = Span.start(
+        context=context,
+        recorder=recorder,
+        event_type="agent",
+        operation="agent_execution",
+    )
+
+    child = Span.start(
+        context=context,
+        recorder=recorder,
+        event_type="generation",
+        operation="llm_generation",
+        parent_span_id=parent.span_id,
+    )
+
+    child.finish(status="success")
+    parent.finish(status="success")
+
+    assert len(recorder.events) == 2
+
+    child_event = recorder.events[0]
+    parent_event = recorder.events[1]
+
+    assert parent_event.parent_span_id is None
+    assert child_event.parent_span_id == parent_event.span_id
+    assert child_event.trace_id == parent_event.trace_id
+
+
 def test_span_records_error_event():
     context = RequestContext.create()
     recorder = InMemoryTelemetryRecorder()
