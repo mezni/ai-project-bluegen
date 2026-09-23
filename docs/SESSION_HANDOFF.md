@@ -1,6 +1,6 @@
 # Session Handoff
 
-Date: 2026-09-21
+Date: 2026-09-23
 
 ## Project State
 
@@ -27,6 +27,7 @@ app.py (launcher)
                   └── ModelPricing (from config/pricing.yaml via composition root)
    object graph assembled by DependencyContainer (container.py) via create_application (application.py)
    observability: TelemetryEvent (telemetry.py) — event_type, usage (tokens), cost (optional)
+   tracing: Span (tracing.py) — Span.start/finish emits a TelemetryEvent with trace_id, span_id, parent_span_id
 ```
 
 Key properties:
@@ -37,6 +38,8 @@ Key properties:
 * `RequestContext` is frozen and created at the application boundary; its `request_id` threads through service → generator → telemetry → logs → events.
 * Every log line carries `request_id` and `operation` fields via `StructuredLogger` + `RequestContextFilter`; ordinary logs that omit the fields still render.
 * Observability is a single generic `TelemetryEvent` (`event_type` discriminates generation / tool call / agent operations); `request_id` correlates all events for one request.
+* Tracing is helper-owned: `Span.start(context, recorder, event_type, operation, parent_span_id=None)` assigns the `span_id` and timestamps the unit; `span.finish(status, model, prompt_version, tokens, costs, error_type)` records one `TelemetryEvent`. The generator flows success and error events through the span — no manual `perf_counter` or event construction in call sites.
+* Trace hierarchy is explicit: `trace_id` groups the request pipeline, `span_id` identifies each unit of work, and `parent_span_id` links child spans to their parent so a collector can reconstruct the call graph (agent → generation, orchestrator → tool call).
 * Token usage is honest: `LangChainStructuredLLM` reads provider-reported `usage_metadata` (via `include_raw`) into `LLMUsage`; counts stay `None` when the provider reports nothing.
 * Cost is deterministic math (`CostCalculator`) driven by injected `ModelPricing` from `config/pricing.yaml` — no per-model pricing branches in code, no stale prices embedded.
 * The generator records one `TelemetryEvent` per successful generation (status, latency, tokens, cost) through the injectable `TelemetryRecorderInterface`.
@@ -47,6 +50,9 @@ Key properties:
 
 | Release | Feature Domain | What was built |
 | --- | --- | --- |
+| 0.0.39 | Parent span linkage | `TelemetryEvent` + `Span` carry `parent_span_id`; `Span.start()` accepts an optional parent for trace-tree stitching |
+| 0.0.38 | Span helper | `Span` dataclass (`start`/`finish`) emits a `TelemetryEvent`; generator records success/error events through the span; manual timing + event construction removed |
+| 0.0.37 | Trace + span IDs | `RequestContext` gains `trace_id` + `create_span_id()`; `TelemetryEvent` carries `trace_id`/`span_id` |
 | 0.0.1 | Project foundation | Python env, `uv` project, dependencies, `.env`, Git |
 | 0.0.2 | Initial project structure | `app.py`, `generator.py`, `schemas.py`, `prompts.py`, `.env.example` |
 | 0.0.3 | Pydantic Blueprint schema | `ProjectBlueprint` (`project_name`, `business_outcome`) |
@@ -84,7 +90,7 @@ Key properties:
 | 0.0.35 | Cost on events | Generator computes cost and records it on the event; composition root validates model pricing exists |
 | 0.0.36 | Generic telemetry event | `GenerationEvent` → `TelemetryEvent` (adds `event_type`, optional model/tokens/cost fields) |
 
-Test status: **23 passed**.
+Test status: **27 passed**.
 
 ## Current Structure
 
@@ -103,6 +109,7 @@ ai-project-bluegen/
 ├── structured_llm.py       # LangChainStructuredLLM: ChatOpenAI + with_structured_output(include_raw=True)
 ├── prompt_manager.py       # PromptManager: loads versioned prompt files (implements PromptManagerInterface)
 ├── logger.py               # StructuredLogger: info/error/exception with request_id/operation extras
+├── tracing.py              # Span: start/finish emits TelemetryEvent with trace_id/span_id/parent_span_id
 ├── schemas.py              # ProjectBlueprint, GenerateBlueprintRequest/Response, GenerationTelemetryResponse
 ├── exceptions.py           # ProjectGenerationError
 ├── telemetry.py            # GenerationTelemetry, TelemetryEvent, GenerationResult (frozen dataclasses)
@@ -126,6 +133,7 @@ ai-project-bluegen/
 │   ├── test_settings.py    # Settings/.env
 │   ├── test_prompt_manager.py
 │   ├── test_context.py     # RequestContext creation + immutability
+│   ├── test_tracing.py     # Span success/error/parent events
 │   ├── test_service.py     # fake generator
 │   ├── test_application.py # fake generator + injected container through create_application
 │   ├── test_generator.py   # fake LLM + fake prompts + recorder + cost through the real generator
@@ -158,6 +166,8 @@ ai-project-bluegen/
 * `DependencyContainer` constructs infrastructure (`PromptManager`, `LangChainStructuredLLM`, `InMemoryTelemetryRecorder`, `CostCalculator`, `ProjectGenerator`, `ProjectBlueprintService`); it never runs the use case. Tests can inject a container to avoid touching `.env`/`config/*.yaml`.
 * Structured output is an adapter concern (`LangChainStructuredLLM`) — the generator is provider-agnostic.
 * Observability is one generic `TelemetryEvent` discriminated by `event_type`; the recorder contract never leaks generation vocabulary. `request_id` correlates all events.
+* Tracing goes through a single `Span` helper (`tracing.py`): `start()` assigns the span id + timestamp, `finish()` records one `TelemetryEvent` (status, latency, model, prompt version, tokens, costs, `error_type`). The generator holds no manual timing or event construction.
+* Trace hierarchy: `trace_id` groups the request pipeline, `span_id` identifies each operation, `parent_span_id` (optional in `Span.start()`) links child spans to their parent — prerequisites for reconstructing the call graph once agents and tools exist.
 * Prompts are versioned files (`prompts/<name>/<version>/`); `config/prompts.yaml` selects the active version; the version is recorded in telemetry.
 * The interaction surface (`CLI`) is replaceable: the application speaks typed request/response contracts.
 * LLM config lives in `config/llm.yaml` (typed `LLMConfig`); secrets live in `.env` (typed `Settings`); pricing lives in `config/pricing.yaml` (typed `PricingConfig`).
@@ -181,7 +191,7 @@ Python `>=3.12`.
 
 ```text
 uv run python app.py "Build an AI system that classifies corporate documents."
-uv run pytest        # 23 passed
+uv run pytest        # 27 passed
 ```
 
 ## Next Steps — From STEPS.md (Roadmap Step 7: Complete Single-Agent Blueprint)
@@ -218,9 +228,9 @@ Objectives:
 
 ## Immediate Follow-ups
 
-1. Expand `schemas.py` toward the full blueprint (Roadmap Step 7) → next release 0.0.37.
-2. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.36).
-3. Keep `docs/STEPS.md` and `docs/ROADMAP.md` status markers current (STEPS 1–37; Roadmap Step 40 Cost/FinOps ◐ — token usage + per-generation cost landed, cost aggregation and optimization pending).
+1. Expand `schemas.py` toward the full blueprint (Roadmap Step 7) → next release 0.0.40.
+2. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.39).
+3. Keep `docs/STEPS.md` and `docs/ROADMAP.md` status markers current (STEPS 1–40; Roadmap Step 40 Cost/FinOps ◐ — token usage + per-generation cost landed, cost aggregation and optimization pending).
 4. Do not create agents/, tools/, api/ directories yet — they come later per plan.
 
 ## Todo
@@ -231,4 +241,7 @@ Objectives:
 - [ ] Integration tests for the real LLM path (free model)
 - [x] Token usage capture from the provider (0.0.33, `LLMUsage` + `include_raw`)
 - [x] Per-generation cost via config pricing (0.0.34/0.0.35, `CostCalculator` + events)
+- [x] Trace + span IDs (0.0.37, `RequestContext.trace_id` + `TelemetryEvent.trace_id`/`span_id`)
+- [x] Span helper (0.0.38, `tracing.Span` start/finish in the generator)
+- [x] Parent span linkage (0.0.39, optional `parent_span_id` on `Span.start`/`TelemetryEvent`)
 - [ ] Roadmap Step 11+ — per `docs/ROADMAP.md`

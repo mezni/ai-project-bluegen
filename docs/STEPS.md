@@ -42,10 +42,13 @@ Each row records a completed increment with its one-sentence summary, the archit
 | 35 | Cost calculation | Add deterministic `CostCalculator` (`ModelPricing` → `GenerationCost`) and typed pricing config (`config/pricing.yaml`). | **Cost as math + config**: per-million-token rates are configuration, not code, so stale commercial prices are never embedded; the calculator is pure deterministic Python — AI reasons, code guarantees. |
 | 36 | Cost on events | The generator computes cost from usage + injected pricing and records it on the event; the composition root validates the configured model has pricing. | **Cost wired at the root**: `ModelPricing` is looked up from config by the composition root and injected — no per-model pricing branches in the generator; a missing pricing entry fails loudly instead of silently running unmeasured. |
 | 37 | Generic telemetry event | Rename `GenerationEvent` → `TelemetryEvent`: add `event_type` and make generation-specific fields (`model`, `prompt_version`, tokens, cost) optional. | **One event for the whole pipeline**: a single generic record serves generation, tool calls, and agents under one `request_id`; `event_type` discriminates, and fields are populated only when relevant — the recorder contract stops leaking generation vocabulary. |
+| 38 | Trace + span IDs | Extend the frozen `RequestContext` with a `trace_id` and add `create_span_id()`; `TelemetryEvent` now requires `trace_id`/`span_id`. | **One request ID is not enough**: `request_id` correlates a single call; `trace_id` groups a multi-operation trace and `span_id` identifies each unit of work — the prerequisites for stitching events into parent/child trees later. |
+| 39 | Span helper | Add a `Span` dataclass in `tracing.py` (`start`/`finish`) that emits one `TelemetryEvent`; the generator records success and error events through the span instead of manual construction. | **Declarative tracing**: the span owns span-id assignment, timing, and event emission, so call sites don't hand-construct `TelemetryEvent` or call `perf_counter` — the same helper later times tool calls and agent steps uniformly. |
+| 40 | Parent span linkage | Add `parent_span_id` to `TelemetryEvent` and `Span`; `Span.start()` accepts an optional parent so child spans link to their parent. | **Trace trees, not flat lists**: knowing the parent span lets a collector reconstruct the call graph (agent → generation, orchestrator → tool call); nesting stays declarative on the helper instead of hand-wired per call site. |
 
-Legend: completed steps 1–37.
+Legend: completed steps 1–40.
 
-## Architecture after Step 37
+## Architecture after Step 40
 
 ```text
 app.py (launcher)
@@ -67,6 +70,7 @@ app.py (launcher)
    object graph assembled by DependencyContainer (container.py) via create_application (application.py)
    structured logging: StructuredLogger (logger.py) + RequestContextFilter (logging_config.py)
    observability events: TelemetryEvent (telemetry.py) — event_type, usage (tokens), cost
+   tracing: Span (tracing.py) — start/finish emits a TelemetryEvent with trace_id, span_id, parent_span_id
 ```
 
-**23 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_context.py`, `test_generator.py`, `test_telemetry.py`, `test_telemetry_recorder.py`, `test_cost.py`).
+**27 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_context.py`, `test_generator.py`, `test_telemetry.py`, `test_telemetry_recorder.py`, `test_cost.py`, `test_tracing.py`).
