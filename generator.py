@@ -127,6 +127,8 @@ class ProjectGenerator(ProjectGeneratorInterface):
 
         event = TelemetryEvent(
             request_id=context.request_id,
+            trace_id=context.trace_id,
+            span_id=context.create_span_id(),
             event_type="generation",
             operation="project_blueprint_generation",
             status="success",

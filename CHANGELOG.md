@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.37 | Trace + span IDs | RequestContext gains trace_id + create_span_id(), TelemetryEvent carries trace_id/span_id for per-operation tracing |
 | 0.0.36 | Generic telemetry event | GenerationEvent → TelemetryEvent, event_type discriminator, reusable across generation/tool calls |
 | 0.0.35 | Cost on events | Generator computes generation cost, cost fields on GenerationEvent, pricing wired via composition root |
 | 0.0.34 | Cost calculation | CostCalculator, deterministic cost math, pricing config with placeholder values |
@@ -49,7 +50,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [0.0.36] - 2026-09-21
+## [0.0.37] - 2026-09-23
+
+### Trace and Span IDs
+
+**Feature Domain:** Trace + span IDs
+
+**Key Objectives:**
+
+* `RequestContext` gains a `trace_id` alongside `request_id`, distinguishing one request from a broader trace
+* `TelemetryEvent` now carries `trace_id` and `span_id`, giving each individual operation within a trace its own identifier
+* `RequestContext.create_span_id()` generates unique span IDs per execution unit
+
+### Added
+
+* `context.py` — `RequestContext` now has a `trace_id` field (generated in `create()`), plus a `create_span_id()` helper that returns a fresh `uuid4`
+* `tests/test_context.py` — `test_request_context_generates_ids` asserts both `request_id` and `trace_id`; `test_span_ids_are_unique` asserts span IDs are non-empty and distinct
+
+### Changed
+
+* `telemetry.py` — `TelemetryEvent` now requires `trace_id` and `span_id` (in addition to `request_id`)
+* `generator.py` — the recorded `TelemetryEvent` now passes `trace_id=context.trace_id` and `span_id=context.create_span_id()`
+* `tests/test_telemetry.py` — generation and tool-call event tests now set and assert `trace_id` / `span_id`
+* `tests/test_telemetry_recorder.py` — updated event construction with `trace_id` / `span_id`
+
+### Why
+
+One `request_id` is enough to correlate a single call, but not to track a multi-operation trace. With `trace_id` shared across the pipeline and `span_id` unique per operation (generation, tool call, agent step), every `TelemetryEvent` can later be stitched into a parent/child trace — the precondition for full observability as the system grows toward pipelines and agents.
+
+---
 
 ### Generic Telemetry Event
 
