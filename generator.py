@@ -1,5 +1,4 @@
 import logging
-import time
 
 from context import RequestContext
 from cost import CostCalculator, ModelPricing
@@ -14,8 +13,8 @@ from logger import StructuredLogger
 from telemetry import (
     GenerationResult,
     GenerationTelemetry,
-    TelemetryEvent,
 )
+from tracing import Span
 
 
 class ProjectGenerator(ProjectGeneratorInterface):
@@ -71,7 +70,12 @@ class ProjectGenerator(ProjectGeneratorInterface):
             ),
         ]
 
-        start_time = time.perf_counter()
+        span = Span.start(
+            context=context,
+            recorder=self.telemetry_recorder,
+            event_type="generation",
+            operation="project_blueprint_generation",
+        )
 
         try:
             self.logger.info(
@@ -82,8 +86,6 @@ class ProjectGenerator(ProjectGeneratorInterface):
 
             blueprint, usage = self.llm.generate(messages)
 
-            latency = time.perf_counter() - start_time
-
             self.logger.info(
                 "Blueprint generation completed",
                 request_id=context.request_id,
@@ -91,7 +93,12 @@ class ProjectGenerator(ProjectGeneratorInterface):
             )
 
         except Exception as exc:
-            latency = time.perf_counter() - start_time
+            span.finish(
+                status="error",
+                model=self.llm.model_name,
+                prompt_version=self.prompt_manager.get_version(),
+                error_type=type(exc).__name__,
+            )
 
             self.logger.exception(
                 "Blueprint generation failed",
@@ -107,7 +114,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
             request_id=context.request_id,
             model=self.llm.model_name,
             prompt_version=self.prompt_manager.get_version(),
-            latency_seconds=latency,
+            latency_seconds=span.latency_seconds,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             total_tokens=usage.total_tokens,
@@ -125,14 +132,8 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 output_tokens=usage.output_tokens,
             )
 
-        event = TelemetryEvent(
-            request_id=context.request_id,
-            trace_id=context.trace_id,
-            span_id=context.create_span_id(),
-            event_type="generation",
-            operation="project_blueprint_generation",
+        span.finish(
             status="success",
-            latency_seconds=latency,
             model=self.llm.model_name,
             prompt_version=self.prompt_manager.get_version(),
             input_tokens=usage.input_tokens,
@@ -154,8 +155,6 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 else None
             ),
         )
-
-        self.telemetry_recorder.record(event)
 
         return GenerationResult(
             blueprint=blueprint,

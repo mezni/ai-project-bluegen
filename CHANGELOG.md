@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.38 | Span helper | `Span` dataclass wraps span start/finish into a TelemetryEvent; generator uses it instead of manual event construction |
 | 0.0.37 | Trace + span IDs | RequestContext gains trace_id + create_span_id(), TelemetryEvent carries trace_id/span_id for per-operation tracing |
 | 0.0.36 | Generic telemetry event | GenerationEvent → TelemetryEvent, event_type discriminator, reusable across generation/tool calls |
 | 0.0.35 | Cost on events | Generator computes generation cost, cost fields on GenerationEvent, pricing wired via composition root |
@@ -50,7 +51,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [0.0.37] - 2026-09-23
+## [0.0.38] - 2026-09-23
+
+### Span Helper
+
+**Feature Domain:** Span helper
+
+**Key Objectives:**
+
+* `Span` dataclass owns one execution unit: `start()` opens a span, `finish()` closes it into a `TelemetryEvent`
+* The generator records success and error events through the span instead of constructing `TelemetryEvent` manually
+* Manual timing (`time.perf_counter()`) moves out of the generator into the span
+
+### Added
+
+* `tracing.py` — `Span` with `start(context, recorder, event_type, operation)` (captures `span_id` from `context.create_span_id()` and a start timestamp) and `finish(status, model, prompt_version, tokens, costs, error_type)` that builds and records a `TelemetryEvent`; a `latency_seconds` property exposes elapsed time
+* `tests/test_tracing.py` — `test_span_records_success_event` (request/trace/span correlation, operation, model, non-negative latency) and `test_span_records_error_event` (error status + `error_type`)
+
+### Changed
+
+* `generator.py` — starts a `Span` before the LLM call; on success finishes the span with status/model/prompt version/tokens/costs; on failure finishes with `status="error"` and `error_type=type(exc).__name__`; the manual `TelemetryEvent` construction and `start_time`/`latency` timing are removed (`latency` read from `span.latency_seconds` for `GenerationTelemetry`)
+
+### Why
+
+The generator now expresses timing and event emission declaratively, while the span encapsulates the span-id assignment and record-on-finish mechanics. Every future operation (tool call, agent step) can reuse the same helper, keeping the recorder contract and `TelemetryEvent` shape uniform across the pipeline.
+
+---
 
 ### Trace and Span IDs
 
