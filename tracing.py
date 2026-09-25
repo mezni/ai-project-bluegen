@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import time
 
 from context import RequestContext
@@ -76,3 +76,78 @@ class Span:
         )
 
         self.recorder.record(event)
+
+
+@dataclass
+class TraceContext:
+    context: RequestContext
+    recorder: TelemetryRecorderInterface
+    _span_stack: list[Span] = field(default_factory=list)
+
+    def start_span(
+        self,
+        event_type: str,
+        operation: str,
+    ) -> Span:
+        parent_span_id = (
+            self._span_stack[-1].span_id
+            if self._span_stack
+            else None
+        )
+
+        span = Span.start(
+            context=self.context,
+            recorder=self.recorder,
+            event_type=event_type,
+            operation=operation,
+            parent_span_id=parent_span_id,
+        )
+
+        self._span_stack.append(span)
+
+        return span
+
+    def finish_span(
+        self,
+        span: Span,
+        *,
+        status: str,
+        model: str | None = None,
+        prompt_version: str | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        total_tokens: int | None = None,
+        input_cost: float | None = None,
+        output_cost: float | None = None,
+        total_cost: float | None = None,
+        error_type: str | None = None,
+    ) -> None:
+        if not self._span_stack:
+            raise RuntimeError("No active spans.")
+
+        if self._span_stack[-1] is not span:
+            raise RuntimeError(
+                "Span must be finished in LIFO order."
+            )
+
+        span.finish(
+            status=status,
+            model=model,
+            prompt_version=prompt_version,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            input_cost=input_cost,
+            output_cost=output_cost,
+            total_cost=total_cost,
+            error_type=error_type,
+        )
+
+        self._span_stack.pop()
+
+    @property
+    def current_span_id(self) -> str | None:
+        if not self._span_stack:
+            return None
+
+        return self._span_stack[-1].span_id

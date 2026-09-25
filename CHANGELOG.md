@@ -1048,4 +1048,23 @@ Prompts are now managed as a versioned asset (config-driven) rather than imports
 * `docs/ROADMAP.md` learning roadmap
 * `docs/SESSION_HANDOFF.md` session handoff document
 * `CHANGELOG.md` changelog with version history
-* Initial Git repository
+* Initial Git repository## [0.0.40] - 2026-09-25
+
+### Trace Context
+
+**Feature Domain:** Trace context
+
+**Key Objectives:**
+
+* Automatic parent span detection from the active span stack
+* LIFO enforcement for span finish order
+* Hierarchical trace tree building without explicit `parent_span_id`
+
+### Added
+
+* `tracing.py` — `TraceContext` class with `start_span(event_type, operation)` and `finish_span(span, ...)` methods; `current_span_id` property
+* `tests/test_tracing.py` — `test_trace_context_creates_parent_child_relationships`, `test_trace_context_finishes_spans_in_lifo_order`, `test_trace_context_records_nested_events`
+
+### Why
+
+Spans can now be started without manually passing `parent_span_id` — `TraceContext` automatically assigns the currently active span as the parent. This enables natural hierarchical trace trees (agent → generation → tool → database) and enforces LIFO finish order to prevent invalid traces.
