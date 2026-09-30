@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.48 | Exponential backoff | `ExponentialBackoff.calculate_delay(attempt)` returns a capped exponential delay — pure math, no sleeping |
 | 0.0.47 | Retry decision | `RetryPolicy.should_retry()` returns `RetryDecision` carrying `retry`, `next_attempt`, and a human-readable `reason` |
 | 0.0.46 | Retry policy | `RetryPolicy` makes the retry decision deterministic — `should_retry(failure, attempt)` consults `Failure.retryable` and the attempt budget |
 | 0.0.45 | Failure object | `Failure` bundles error type, category, message, and retryability into one value object; span finish APIs take `failure` instead of loose error arguments |
@@ -57,6 +58,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.48] - 2026-09-30
+
+### Exponential Backoff
+
+**Feature Domain:** Recovery
+
+**Key Objectives:**
+
+* Give the retry loop a delay schedule, completing the pure-policy trio (`RetryPolicy` decides *whether*, `ExponentialBackoff` computes *how long*)
+* Keep the calculation free of side effects so it is testable without waiting
+* Validate the policy's parameter relationships at construction rather than producing a nonsensical schedule later
+
+### Added
+
+* `backoff.py` — frozen `ExponentialBackoff` dataclass (`initial_delay_seconds=1.0`, `multiplier=2.0`, `max_delay_seconds=30.0`) with `calculate_delay(attempt)` returning `min(initial × multiplier^(attempt-1), max_delay)`
+* `backoff.py` — `__post_init__` rejects a negative initial delay, a multiplier below 1, a negative max delay, and a max delay smaller than the initial delay; `calculate_delay` rejects `attempt < 1`
+* `tests/test_backoff.py` — 9 tests: first-attempt delay, exponential growth (1/2/4/8), capping at the ceiling, `attempt >= 1` validation, all four construction validations, immutability
+
+### Why
+
+Retrying immediately on a rate-limited or overloaded provider is how a transient failure becomes a self-inflicted outage; the delay schedule is what makes retrying safe rather than aggressive.
+
+Two decisions are baked in that are easy to get wrong by hand: the cap is applied *after* the exponentiation, so a large `attempt` cannot produce an unbounded delay before being clamped, and `max_delay_seconds >= initial_delay_seconds` is enforced up front, because a policy whose ceiling sits below its first delay would silently return the ceiling for every attempt — including the first — instead of failing loudly.
+
+`calculate_delay` returns a number and never sleeps. The policy stays a value object, so the whole schedule is assertable in milliseconds and the actual waiting remains the caller's decision when the retry loop is wired up (Roadmap Step 22).
+
+Scope note: nothing calls `calculate_delay` yet, and there is no jitter. Jitter matters in production — synchronized retries from many workers can re-create the thundering herd the backoff was meant to prevent — so expect it before this is used against a live provider.
+
+Tests: 62 → 71 passing.
 
 ---
 
