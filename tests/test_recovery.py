@@ -1,6 +1,6 @@
 import pytest
 
-from errors import ErrorCategories
+from errors import ErrorCategories, ErrorCategory
 from failure import Failure
 from recovery import (
     RecoveryAction,
@@ -47,6 +47,40 @@ def test_validation_failure_fails():
         category=ErrorCategories.VALIDATION,
         message="Invalid project idea.",
         retryable=False,
+    )
+
+    decision = strategy.recover(failure)
+
+    assert decision.action == RecoveryAction.FAIL
+
+
+def test_strategy_matches_category_by_value_not_identity():
+    strategy = RecoveryStrategy()
+
+    equivalent_category = ErrorCategory(value="timeout")
+
+    assert equivalent_category is not ErrorCategories.TIMEOUT
+
+    failure = Failure(
+        error_type="TimeoutError",
+        category=equivalent_category,
+        message="Same value, different instance.",
+        retryable=True,
+    )
+
+    decision = strategy.recover(failure)
+
+    assert decision.action == RecoveryAction.FALLBACK
+
+
+def test_unknown_category_fails_closed():
+    strategy = RecoveryStrategy()
+
+    failure = Failure(
+        error_type="SomethingNew",
+        category=ErrorCategory(value="not-a-known-category"),
+        message="Unrecognised failure kind.",
+        retryable=True,
     )
 
     decision = strategy.recover(failure)

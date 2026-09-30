@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.52 | Retry execution | `RetryExecutor` drives attempt → backoff → retry, then acts on the recovery decision; each attempt emits its own span |
+| 0.0.51 | Recovery vocabulary | `RecoveryStrategy` matches `ErrorCategories` constants instead of raw string literals |
+| 0.0.50 | Composition root fix | `create_application(container=...)` no longer crashes building a generator from an injected container |
+| 0.0.49 | Recovery strategy | `RecoveryStrategy.recover(failure)` maps an error category to `FAIL` / `FALLBACK` / `ESCALATE` with a stated reason |
 | 0.0.48 | Exponential backoff | `ExponentialBackoff.calculate_delay(attempt)` returns a capped exponential delay — pure math, no sleeping |
 | 0.0.47 | Retry decision | `RetryPolicy.should_retry()` returns `RetryDecision` carrying `retry`, `next_attempt`, and a human-readable `reason` |
 | 0.0.46 | Retry policy | `RetryPolicy` makes the retry decision deterministic — `should_retry(failure, attempt)` consults `Failure.retryable` and the attempt budget |
@@ -58,6 +62,138 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.52] - 2026-09-30
+
+### Retry Execution
+
+**Feature Domain:** Recovery
+
+**Key Objectives:**
+
+* Actually run the three recovery policies instead of only unit-testing them in isolation
+* Keep the loop testable without wall-clock time by injecting the sleep function
+* Preserve one telemetry span per attempt so a retried request stays fully observable
+* Keep the generator a single-attempt unit of work
+
+### Added
+
+* `retry_executor.py` — `RetryExecutor.execute(operation, fallback=None, request_id=None)` drives the loop and returns an immutable `RetryOutcome(result, attempts, recovery_action, failure)`
+* `retry_executor.py` — policies injected (`RetryPolicy`, `ExponentialBackoff`, `RecoveryStrategy`) plus an injectable `sleep` seam; defaults give 3 attempts and 1s/2s delays
+* `service.py` — `ProjectBlueprintService` takes an optional `RetryExecutor` and a per-call `fallback`; `ProjectBlueprintService(generator)` still works unchanged
+* `tests/test_retry_executor.py` — 10 tests: first-attempt success, retry-then-succeed, exact exponential delay sequence, attempt exhaustion, non-retryable skip, unclassified-error propagation, fallback on timeout, no-fallback on escalation, missing-fallback re-raise, `RetryOutcome` immutability
+* `tests/fakes.py` — `FlakyLLM` that fails N times then succeeds
+* `tests/test_service.py` — integration test proving 3 attempts produce 3 distinct spans under one `trace_id`, and that exhaustion re-raises with the span stack unwound
+
+### Changed
+
+* `exceptions.py` — `ProjectGenerationError` accepts an optional `Failure`, so the loop can see the classification the generator already computed
+* `generator.py` — attaches that `Failure` when raising
+
+### Why
+
+`RetryPolicy`, `ExponentialBackoff` and `RecoveryStrategy` were each correct in isolation and completely inert in production: nothing called them. A value object that is never consulted is documentation, not a feature.
+
+The loop lives in a `RetryExecutor` collaborator rather than inside `ProjectBlueprintService` or `ProjectGenerator` for three reasons. The service stays a thin use-case boundary; the executor is testable against a plain callable with no LLM, no filesystem and no clock; and `ProjectGenerator` keeps exactly one span per call, so a retried request records a sibling span per attempt rather than a single span spanning all attempts. That last property is what makes retry cost and latency attributable — the recovery table is per attempt, and aggregating it later is a query, not a guess.
+
+The `sleep` seam is the load-bearing design choice: injecting it means the test suite asserts the *exact* delay sequence `[0.5, 1.5, 4.5, 13.5]` while the whole suite still runs in seconds. Delays are still real `time.sleep` in production because that is the executor's default.
+
+Unclassified errors — a `ProjectGenerationError` with no `Failure` attached — propagate immediately instead of consuming the attempt budget. Retrying an error we cannot classify is how you turn a fast, clear failure into a slow, mysterious one.
+
+Scope note: the `FALLBACK` path is fully implemented and tested, but no production fallback provider is wired. Falling back to a different model requires a second LLM, a pricing entry for it, and a config key to select it; inventing that here would have meant fabricating infrastructure. Until it exists, a `FALLBACK` decision with no `fallback` callable re-raises and logs, which is the honest behaviour. Each attempt also inherits the generator's coarse classification — every exception is currently `ErrorCategories.LLM` with `retryable=True` — so a validation error surfacing inside the LLM call would be retried. Narrowing that classification is the natural follow-up.
+
+Tests: 80 → 92 passing.
+
+---
+
+## [0.0.51] - 2026-09-30
+
+### Recovery Vocabulary
+
+**Feature Domain:** Recovery
+
+**Key Objectives:**
+
+* Stop comparing failure categories against raw string literals
+* Make an unrecognised category fail closed rather than matching by accident
+
+### Changed
+
+* `recovery.py` — `RecoveryStrategy.recover` matches `ErrorCategories.TIMEOUT` / `ErrorCategories.LLM` instead of `failure.category.value == "timeout"` / `"llm"`
+
+### Added
+
+* `tests/test_recovery.py` — matching is by value, not identity (an independently constructed `ErrorCategory("timeout")` still routes to `FALLBACK`); an unknown category falls through to `FAIL`
+
+### Why
+
+0.0.44 introduced `ErrorCategory` precisely so decisions would stop being string matching, and 0.0.49 then wrote exactly the string matching it was meant to replace. Had `errors.py` renamed `"timeout"` to `"request_timeout"`, `RecoveryStrategy` would have silently degraded to `FAIL` for every timeout — no exception, no warning, just a policy quietly doing the wrong thing.
+
+Because `ErrorCategory` is a frozen dataclass with generated `__eq__`, the comparison stays by value, so a `Failure` deserialized from a log or a future API payload still matches the catalogue constant rather than requiring object identity.
+
+Tests: 78 → 80 passing.
+
+---
+
+## [0.0.50] - 2026-09-30
+
+### Composition Root Fix
+
+**Feature Domain:** Application
+
+**Key Objectives:**
+
+* Fix a crash on the container-injection path
+* Pin the behaviour with a regression test that fails on the old code
+
+### Fixed
+
+* `application.py` — `create_application` referenced `pricing_config` and `llm_config` when building a generator, but both were only bound inside the `if container is None` branch. Calling `create_application(container=container)` with no generator raised `UnboundLocalError`. The model is now read from `container.llm_config.model`, and `load_pricing_config()` is called only on the path that actually needs pricing.
+
+### Added
+
+* `tests/test_application.py` — `create_application` builds a real `ProjectGenerator` from an injected container, with `model_pricing` correctly populated from config
+* `tests/test_application.py` — an unpriced model still raises `ValueError` naming the model, on the container path as well as the default one
+
+### Why
+
+The existing tests only ever passed *both* a container and a generator, which skipped the broken branch entirely — the bug was invisible to the suite, not merely untested. A composition root that cannot build its own object graph from a container it was handed is a real defect, not a cosmetic one, because container injection is the project's designated seam for testing without touching `.env` or `config/*.yaml`.
+
+The pricing-miss guard is now covered on the container path too; previously that validation lived only in the branch that constructed the container, so a container built elsewhere bypassed the check.
+
+Tests: 76 → 78 passing.
+
+---
+
+## [0.0.49] - 2026-09-30
+
+### Recovery Strategy
+
+**Feature Domain:** Recovery
+
+**Key Objectives:**
+
+* Decide what to do about a failure — fail, fall back, or escalate — as a pure function of its error category
+* Introduce `RecoveryAction` as an explicit enum so recovery intent is not scattered string literals
+* Give every decision a stated reason, matching `RetryDecision`
+
+### Added
+
+* `recovery.py` — `RecoveryAction(str, Enum)` with `FAIL` / `FALLBACK` / `ESCALATE`
+* `recovery.py` — frozen `RecoveryDecision(action, reason)` validating a non-empty reason, and frozen `RecoveryStrategy.recover(failure)` mapping `ErrorCategories.TIMEOUT` → `FALLBACK`, `ErrorCategories.LLM` → `ESCALATE`, everything else → `FAIL`
+* `tests/test_recovery.py` — timeout→fallback, llm→escalate, validation→fail, `RecoveryDecision` reason validation, immutability
+
+### Why
+
+Retry answers "should we try again?" and is exhausted on its own; recovery answers "if not, what now?" A timeout that survives its retries should fall back to another model or a degraded response rather than failing the request outright, while a validation error will never succeed no matter how many attempts it gets — treating both identically is what makes naive retry loops look worse than useless.
+
+`RecoveryAction` as an enum rather than `"fail"` / `"fallback"` / `"escalate"` strings means a typo is an `AttributeError` at the call site instead of a branch that silently never matches. `str, Enum` keeps it directly usable as the enum-marker telemetry often expects.
+
+Scope note: nothing calls `recover()` yet, and the strategy ignores `Failure.retryable` entirely — it keys only on `category`, so a retryable and a non-retryable timeout take the same path. Wiring the three policies together (`RetryPolicy.decide` → `ExponentialBackoff.calculate_delay` → `RecoveryStrategy.recover`) into an actual retry loop is the remaining work, tracked as Roadmap Step 22.
+
+Tests: 71 → 76 passing.
 
 ---
 

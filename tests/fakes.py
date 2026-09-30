@@ -52,6 +52,46 @@ class FakeLLM:
         )
 
 
+class FlakyLLM:
+    """Fails a set number of times, then succeeds."""
+
+    def __init__(
+        self,
+        failures_before_success: int,
+        error: Exception | None = None,
+    ) -> None:
+
+        self.failures_before_success = (
+            failures_before_success
+        )
+        self.error = error or RuntimeError("LLM failed.")
+        self.attempts = 0
+
+    @property
+    def model_name(self) -> str:
+        return "flaky-model"
+
+    def generate(self, messages):
+        self.attempts += 1
+
+        if self.attempts <= self.failures_before_success:
+            raise self.error
+
+        return (
+            ProjectBlueprint(
+                project_name="Recovered Project",
+                business_outcome=(
+                    "Recovered business outcome."
+                ),
+            ),
+            LLMUsage(
+                input_tokens=10,
+                output_tokens=5,
+                total_tokens=15,
+            ),
+        )
+
+
 class FakePromptManager(PromptManagerInterface):
 
     def get_system_prompt(self) -> str:

@@ -1,6 +1,15 @@
+import pytest
+
+import application
 from application import Application, create_application
-from config import LLMConfig, Settings
+from config import (
+    LLMConfig,
+    ModelPricingConfig,
+    PricingConfig,
+    Settings,
+)
 from container import DependencyContainer
+from generator import ProjectGenerator
 from interfaces import ProjectGeneratorInterface
 from schemas import (
     GenerateBlueprintRequest,
@@ -73,6 +82,67 @@ def test_create_application_with_custom_generator() -> None:
     assert len(result.telemetry.request_id) == 36
     assert result.telemetry.model == "fake-model"
     assert result.telemetry.prompt_version == "test-v1"
+
+
+def _build_container(model: str) -> DependencyContainer:
+    return DependencyContainer(
+        settings=Settings(
+            openrouter_api_key="test-key",
+        ),
+        llm_config=LLMConfig(
+            provider="openrouter",
+            base_url="https://openrouter.ai/api/v1",
+            model=model,
+            temperature=0.2,
+            max_tokens=1000,
+        ),
+    )
+
+
+def test_create_application_builds_generator_from_container(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        application,
+        "load_pricing_config",
+        lambda: PricingConfig(
+            models={
+                "openai/gpt-4o-mini": ModelPricingConfig(
+                    input_cost_per_million_tokens=1.5,
+                    output_cost_per_million_tokens=6.0,
+                )
+            }
+        ),
+    )
+
+    container = _build_container("openai/gpt-4o-mini")
+
+    app = create_application(container=container)
+
+    assert isinstance(
+        app.blueprint_service.generator,
+        ProjectGenerator,
+    )
+    assert (
+        app.blueprint_service.generator.model_pricing
+        .input_cost_per_million_tokens
+        == 1.5
+    )
+
+
+def test_create_application_raises_when_pricing_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        application,
+        "load_pricing_config",
+        lambda: PricingConfig(models={}),
+    )
+
+    container = _build_container("openai/gpt-4o-mini")
+
+    with pytest.raises(ValueError, match="openai/gpt-4o-mini"):
+        create_application(container=container)
 
 
 def test_application_creates_trace_context() -> None:

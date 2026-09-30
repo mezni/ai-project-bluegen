@@ -119,7 +119,8 @@ class ProjectGenerator(ProjectGeneratorInterface):
             )
 
             raise ProjectGenerationError(
-                "Failed to generate the project blueprint."
+                "Failed to generate the project blueprint.",
+                failure=failure,
             ) from exc
 
         latency_seconds = span.latency_seconds

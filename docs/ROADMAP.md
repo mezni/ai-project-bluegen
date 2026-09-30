@@ -25,7 +25,7 @@
 | 19 | Deterministic tools | Validators, cost calculator, architecture checker | ⬜ |
 | 20 | Authority boundaries | Permissions, least privilege, allowed/forbidden actions | ⬜ |
 | 21 | Human-in-the-loop | Approval gates, high-risk actions, escalation | ⬜ |
-| 22 | Recovery | Retry, fallback model, invalid output recovery, failure handling | ⬜ |
+| 22 | Recovery | Retry, fallback model, invalid output recovery, failure handling | ◐ retry + backoff + recovery decision loop wired (0.0.46–0.0.52); fallback model and invalid-output recovery pending |
 | 23 | Observability | Logs, request IDs, traces, latency, token usage, errors | ✅ |
 | 24 | Evaluation | Accuracy, completeness, relevance, hallucination, structured evals | ⬜ |
 | 25 | Evaluation dataset | Golden examples, expected outputs, regression testing | ⬜ |

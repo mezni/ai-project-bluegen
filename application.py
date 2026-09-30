@@ -74,13 +74,6 @@ def create_application(
     if container is None:
         settings = load_settings()
         llm_config = load_llm_config()
-        pricing_config = load_pricing_config()
-
-        if llm_config.model not in pricing_config.models:
-            raise ValueError(
-                f"No pricing configuration found for "
-                f"model: {llm_config.model}"
-            )
 
         container = DependencyContainer(
             settings=settings,
@@ -93,9 +86,17 @@ def create_application(
 
     if generator is None:
 
-        model_pricing_config = pricing_config.models[
-            llm_config.model
-        ]
+        model = container.llm_config.model
+
+        pricing_config = load_pricing_config()
+
+        if model not in pricing_config.models:
+            raise ValueError(
+                f"No pricing configuration found for "
+                f"model: {model}"
+            )
+
+        model_pricing_config = pricing_config.models[model]
 
         model_pricing = ModelPricing(
             input_cost_per_million_tokens=(
