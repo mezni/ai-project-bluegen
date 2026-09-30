@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.46 | Retry policy | `RetryPolicy` makes the retry decision deterministic — `should_retry(failure, attempt)` consults `Failure.retryable` and the attempt budget |
 | 0.0.45 | Failure object | `Failure` bundles error type, category, message, and retryability into one value object; span finish APIs take `failure` instead of loose error arguments |
 | 0.0.44 | Error classification | `ErrorCategory` separates "what kind of failure" from `error_type` ("which exception"); `TelemetryEvent` carries both |
 | 0.0.43 | Span status vocabulary | `SpanStatus` value object replaces the raw `status` string at span boundaries; `SpanStatuses` catalogue mirrors `Operations` |
@@ -55,6 +56,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.46] - 2026-09-30
+
+### Retry Policy
+
+**Feature Domain:** Recovery
+
+**Key Objectives:**
+
+* Make the retry decision a deterministic function of the failure and the attempt number, rather than something implied at each call site
+* Give `Failure.retryable` (added in 0.0.45, previously dropped at the telemetry boundary) an actual consumer
+* Encode the attempt budget as validated policy data instead of a hardcoded loop bound
+
+### Added
+
+* `retry.py` — frozen `RetryPolicy(max_attempts: int = 3)` validating the budget in `__post_init__`, and `should_retry(failure, attempt)` returning `False` for non-retryable failures or an exhausted budget, `True` otherwise; rejects `attempt < 1`
+* `tests/test_retry.py` — `test_max_attempts_must_be_at_least_one`, `test_non_retryable_failure_is_not_retried`, `test_retryable_failure_is_retried`, `test_no_retry_after_max_attempts`, `test_attempt_must_be_at_least_one`, `test_one_attempt_means_no_retry`
+
+### Why
+
+Two conditions gate a retry, and they belong together: the failure must be retryable *and* attempts must remain. Expressing both in one predicate means a call site cannot accidentally retry a validation error by forgetting the flag, and the `max_attempts=1` case behaves correctly without special-casing.
+
+`should_retry` is pure and takes no clock, network, or state — the decision is testable in isolation, which is the same discipline as `CostCalculator`. `attempt` is 1-based and validated, so an off-by-one in a future retry loop surfaces immediately instead of silently never retrying.
+
+Scope note: `RetryPolicy` is not wired into the generator yet — nothing calls `should_retry`, and the generator still raises on the first LLM failure. This is the policy in isolation, ahead of the recovery workflow (Roadmap Step 22). There is also no backoff or delay modelling yet; `max_attempts` bounds count only.
+
+Tests: 52 → 58 passing.
+
+---
+
+## [0.0.45] - 2026-09-30
+
+### Failure Object
+
+**Feature Domain:** Observability vocabulary
+
+**Key Objectives:**
+
+* Bundle everything known about a failure — type, category, message, retryability — into a single validated value object instead of separate parameters
+* Replace the two-parameter `error_type` / `error_category` span API with one `failure` argument, so adding failure metadata later does not widen every call site
+* Keep the recorded telemetry unchanged while the domain layer grows richer
+
+### Added
+
+* `failure.py` — frozen `Failure` dataclass (`error_type`, `category: ErrorCategory`, `message`, `retryable: bool = False`) validating `error_type` and `message`; `retryable` defaults to `False`
+* `tests/test_failure.py` — `test_failure_requires_error_type`, `test_failure_requires_message`, `test_failure_defaults_to_not_retryable`, `test_failure_can_be_retryable`, `test_failure_is_immutable`
+* `tests/test_tracing.py` — `test_span_records_failure` asserts a `Failure` reaches the recorded event as `status="error"` / `error_type="ProviderError"` / `error_category="llm"`
+
+### Changed
+
+* `tracing.py` — `Span.finish(error_type, error_category, ...)` and `TraceContext.finish_span(...)` replaced by `failure: Failure | None = None`; `Span.finish()` unpacks it into the existing event fields (`failure.error_type`, `failure.category.value`)
+* `generator.py` — the error path builds a `Failure(category=ErrorCategories.LLM, message="LLM generation failed.", retryable=True)` and passes it to `finish_span`
+* `tests/test_tracing.py` — `test_span_records_error_event` and `test_span_records_error_category` now pass a `Failure` instead of loose arguments
+
+### Why
+
+`error_type` and `error_category` were two parameters travelling together that always had to agree, and the next fact to record — a human-readable message, then whether a retry is worth attempting — would have meant a third and fourth. One `Failure` makes the pairing structural: it cannot be constructed with a category but no type, and adding `retryable` required no change to `Span.finish`'s signature at all.
+
+The conversion at the event boundary is unchanged, so recorded telemetry is identical to 0.0.44: the event still carries `error_type` and `error_category` as plain strings, and `message` / `retryable` are not first-class fields on `TelemetryEvent`. `retryable` is dropped at the boundary — 0.0.46 gives it a consumer.
+
+Tests: 46 → 52 passing.
 
 ---
 
