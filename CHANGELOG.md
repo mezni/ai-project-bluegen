@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.43 | Span status vocabulary | `SpanStatus` value object replaces the raw `status` string at span boundaries; `SpanStatuses` catalogue mirrors `Operations` |
 | 0.0.42 | Span attributes | `TelemetryEvent` carries an open `attributes` map; spans can record operation-specific detail without widening the event schema |
 | 0.0.41 | Operation vocabulary | `Operation` value object replaces the `event_type`/`operation` string pair; `Operations` catalogue centralizes the observability vocabulary |
 | 0.0.40 | Application-owned trace | `Application` creates the `TraceContext` per request and injects it through service → generator; recorder is a required application dependency |

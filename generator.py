@@ -10,6 +10,7 @@ from interfaces import (
 )
 from logger import StructuredLogger
 from operations import Operations
+from span_status import SpanStatuses
 from telemetry import (
     GenerationResult,
     GenerationTelemetry,
@@ -94,7 +95,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
         except Exception as exc:
             trace.finish_span(
                 span,
-                status="error",
+                status=SpanStatuses.ERROR,
                 model=self.llm.model_name,
                 prompt_version=(
                     self.prompt_manager.get_version()
@@ -138,7 +139,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
 
         trace.finish_span(
             span,
-            status="success",
+            status=SpanStatuses.SUCCESS,
             model=self.llm.model_name,
             prompt_version=self.prompt_manager.get_version(),
             input_tokens=usage.input_tokens,

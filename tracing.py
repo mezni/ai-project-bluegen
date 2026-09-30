@@ -4,6 +4,7 @@ from typing import Any
 
 from context import RequestContext
 from operations import Operation
+from span_status import SpanStatus
 from telemetry import TelemetryEvent
 from interfaces import TelemetryRecorderInterface
 
@@ -41,7 +42,7 @@ class Span:
     def finish(
         self,
         *,
-        status: str,
+        status: SpanStatus,
         model: str | None = None,
         prompt_version: str | None = None,
         input_tokens: int | None = None,
@@ -62,7 +63,7 @@ class Span:
             parent_span_id=self.parent_span_id,
             event_type=self.operation.event_type,
             operation=self.operation.name,
-            status=status,
+            status=status.value,
             latency_seconds=latency,
             model=model,
             prompt_version=prompt_version,
@@ -110,7 +111,7 @@ class TraceContext:
         self,
         span: Span,
         *,
-        status: str,
+        status: SpanStatus,
         model: str | None = None,
         prompt_version: str | None = None,
         input_tokens: int | None = None,
