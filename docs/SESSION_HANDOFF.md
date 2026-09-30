@@ -1,19 +1,19 @@
 # Session Handoff
 
-Date: 2026-09-23
+Date: 2026-09-30
 
 ## Project State
 
 An agentic AI learning project that transforms a simple AI project idea into a structured, implementation-ready architecture blueprint. Built progressively with Python, Pydantic, LangChain, and OpenRouter.
 
-Current stage: **Level 1 — Structured LLM** functional end-to-end, behind a clean layered architecture with fully injected dependencies, a container-based composition root, request context, structured logging, token usage tracking, and deterministic cost calculation:
+Current stage: **Level 1 — Structured LLM** functional end-to-end, behind a clean layered architecture with fully injected dependencies, a container-based composition root, application-owned request tracing, structured logging, token usage tracking, and deterministic cost calculation:
 
 ```text
 app.py (launcher)
    → CLI (cli.py — replaceable presentation layer)
-      → Application (application.py — creates RequestContext at the use-case boundary)
-         → ProjectBlueprintService (service.py)
-            → ProjectGeneratorInterface (interfaces.py, ABC)
+      → Application (application.py — creates RequestContext + TraceContext at the use-case boundary)
+         → ProjectBlueprintService (service.py — receives the trace, forwards it)
+            → ProjectGeneratorInterface (interfaces.py, ABC — generate(project_idea, trace))
                → ProjectGenerator (generator.py)
                   ├── PromptManagerInterface (interfaces.py, ABC)
                   │   ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
@@ -27,7 +27,8 @@ app.py (launcher)
                   └── ModelPricing (from config/pricing.yaml via composition root)
    object graph assembled by DependencyContainer (container.py) via create_application (application.py)
    observability: TelemetryEvent (telemetry.py) — event_type, usage (tokens), cost (optional)
-   tracing: Span (tracing.py) — Span.start/finish emits a TelemetryEvent with trace_id, span_id, parent_span_id
+   tracing: TraceContext (tracing.py) — owns the span stack; start_span/finish_span emit a
+            TelemetryEvent with trace_id, span_id, parent_span_id; Span is an internal detail
 ```
 
 Key properties:
@@ -36,10 +37,12 @@ Key properties:
 * `config.py` is the single configuration boundary — `Settings` (from `.env`), `LLMConfig` (`config/llm.yaml`), and `PricingConfig` (`config/pricing.yaml`).
 * `DependencyContainer` knows how to construct infrastructure only; it never executes use cases. The composition root (`create_application`) accepts an injected generator and/or container for tests.
 * `RequestContext` is frozen and created at the application boundary; its `request_id` threads through service → generator → telemetry → logs → events.
+* **The application owns the request trace.** It creates `RequestContext` *and* `TraceContext` once per request and passes it down through service → generator. No layer below re-derives context, and the generator never creates request identity.
+* `TraceContext` (tracing.py) owns the span stack: `start_span(event_type, operation)` opens a span and auto-links it to the enclosing one via `parent_span_id`; `finish_span(span, status, model, prompt_version, tokens, costs, error_type)` records exactly one `TelemetryEvent` and pops it. Spans must be finished in LIFO order. `Span` itself is now an internal detail of `TraceContext` — call sites no longer call `Span.start(...)` directly.
 * Every log line carries `request_id` and `operation` fields via `StructuredLogger` + `RequestContextFilter`; ordinary logs that omit the fields still render.
 * Observability is a single generic `TelemetryEvent` (`event_type` discriminates generation / tool call / agent operations); `request_id` correlates all events for one request.
-* Tracing is helper-owned: `Span.start(context, recorder, event_type, operation, parent_span_id=None)` assigns the `span_id` and timestamps the unit; `span.finish(status, model, prompt_version, tokens, costs, error_type)` records one `TelemetryEvent`. The generator flows success and error events through the span — no manual `perf_counter` or event construction in call sites.
 * Trace hierarchy is explicit: `trace_id` groups the request pipeline, `span_id` identifies each unit of work, and `parent_span_id` links child spans to their parent so a collector can reconstruct the call graph (agent → generation, orchestrator → tool call).
+* `interfaces.py` imports `TraceContext` under `TYPE_CHECKING` only — `tracing.py` already imports `interfaces`, so a runtime import would be circular.
 * Token usage is honest: `LangChainStructuredLLM` reads provider-reported `usage_metadata` (via `include_raw`) into `LLMUsage`; counts stay `None` when the provider reports nothing.
 * Cost is deterministic math (`CostCalculator`) driven by injected `ModelPricing` from `config/pricing.yaml` — no per-model pricing branches in code, no stale prices embedded.
 * The generator records one `TelemetryEvent` per successful generation (status, latency, tokens, cost) through the injectable `TelemetryRecorderInterface`.
@@ -50,6 +53,7 @@ Key properties:
 
 | Release | Feature Domain | What was built |
 | --- | --- | --- |
+| 0.0.40 | Application-owned trace | `Application` creates `TraceContext` per request and injects it through service → generator; `generate(project_idea, trace)` contract; recorder required by `Application` |
 | 0.0.39 | Parent span linkage | `TelemetryEvent` + `Span` carry `parent_span_id`; `Span.start()` accepts an optional parent for trace-tree stitching |
 | 0.0.38 | Span helper | `Span` dataclass (`start`/`finish`) emits a `TelemetryEvent`; generator records success/error events through the span; manual timing + event construction removed |
 | 0.0.37 | Trace + span IDs | `RequestContext` gains `trace_id` + `create_span_id()`; `TelemetryEvent` carries `trace_id`/`span_id` |
@@ -90,7 +94,7 @@ Key properties:
 | 0.0.35 | Cost on events | Generator computes cost and records it on the event; composition root validates model pricing exists |
 | 0.0.36 | Generic telemetry event | `GenerationEvent` → `TelemetryEvent` (adds `event_type`, optional model/tokens/cost fields) |
 
-Test status: **27 passed**.
+Test status: **31 passed**.
 
 ## Current Structure
 
@@ -99,17 +103,17 @@ ai-project-bluegen/
 │
 ├── app.py                  # Launcher: from cli import main
 ├── cli.py                  # CLI: configure_logging, args → request → application → formatted output (replaceable)
-├── application.py          # Application + create_application (composition root, creates RequestContext)
+├── application.py          # Application + create_application (composition root, creates RequestContext + TraceContext)
 ├── container.py            # DependencyContainer: prompt manager / structured LLM / recorder / cost / generator / service
-├── context.py              # RequestContext (frozen request_id + create())
-├── service.py              # ProjectBlueprintService (forwards context to generator)
+├── context.py              # RequestContext (frozen request_id + trace_id, create(), create_span_id())
+├── service.py              # ProjectBlueprintService (receives the TraceContext, forwards it to the generator)
 ├── interfaces.py           # ProjectGeneratorInterface + StructuredLLMInterface + PromptManagerInterface
-│                           #   + TelemetryRecorderInterface (ABCs), LLMUsage
-├── generator.py            # ProjectGenerator: injectable, records TelemetryEvent with usage + cost
+│                           #   + TelemetryRecorderInterface (ABCs), LLMUsage; TraceContext under TYPE_CHECKING
+├── generator.py            # ProjectGenerator: injectable, opens/closes spans via TraceContext, records usage + cost
 ├── structured_llm.py       # LangChainStructuredLLM: ChatOpenAI + with_structured_output(include_raw=True)
 ├── prompt_manager.py       # PromptManager: loads versioned prompt files (implements PromptManagerInterface)
 ├── logger.py               # StructuredLogger: info/error/exception with request_id/operation extras
-├── tracing.py              # Span: start/finish emits TelemetryEvent with trace_id/span_id/parent_span_id
+├── tracing.py              # TraceContext: owns the span stack (start_span/finish_span, LIFO); Span is internal
 ├── schemas.py              # ProjectBlueprint, GenerateBlueprintRequest/Response, GenerationTelemetryResponse
 ├── exceptions.py           # ProjectGenerationError
 ├── telemetry.py            # GenerationTelemetry, TelemetryEvent, GenerationResult (frozen dataclasses)
@@ -133,9 +137,9 @@ ai-project-bluegen/
 │   ├── test_settings.py    # Settings/.env
 │   ├── test_prompt_manager.py
 │   ├── test_context.py     # RequestContext creation + immutability
-│   ├── test_tracing.py     # Span success/error/parent events
-│   ├── test_service.py     # fake generator
-│   ├── test_application.py # fake generator + injected container through create_application
+│   ├── test_tracing.py     # Span success/error/parent events, TraceContext nesting + LIFO
+│   ├── test_service.py     # fake generator + injected TraceContext
+│   ├── test_application.py # fake generator + injected container; CapturingGenerator trace-ownership test
 │   ├── test_generator.py   # fake LLM + fake prompts + recorder + cost through the real generator
 │   ├── test_telemetry.py   # TelemetryEvent data + generic (tool_call) shape
 │   ├── test_telemetry_recorder.py
@@ -145,11 +149,11 @@ ai-project-bluegen/
 ├── .gitignore
 ├── pyproject.toml
 ├── uv.lock
-├── CHANGELOG.md            # 0.0.1–0.0.36 (newest first)
+├── CHANGELOG.md            # 0.0.1–0.0.40 (newest first)
 ├── README.md               # Full 21-section project document
 ├── docs/
 │   ├── ROADMAP.md          # 42-step roadmap with status markers
-│   ├── STEPS.md            # granular learning steps 1–37 with "choices + why"
+│   ├── STEPS.md            # granular learning steps 1–41 with "choices + why"
 │   └── SESSION_HANDOFF.md  # this file
 └── .venv/
 ```
@@ -166,13 +170,15 @@ ai-project-bluegen/
 * `DependencyContainer` constructs infrastructure (`PromptManager`, `LangChainStructuredLLM`, `InMemoryTelemetryRecorder`, `CostCalculator`, `ProjectGenerator`, `ProjectBlueprintService`); it never runs the use case. Tests can inject a container to avoid touching `.env`/`config/*.yaml`.
 * Structured output is an adapter concern (`LangChainStructuredLLM`) — the generator is provider-agnostic.
 * Observability is one generic `TelemetryEvent` discriminated by `event_type`; the recorder contract never leaks generation vocabulary. `request_id` correlates all events.
-* Tracing goes through a single `Span` helper (`tracing.py`): `start()` assigns the span id + timestamp, `finish()` records one `TelemetryEvent` (status, latency, model, prompt version, tokens, costs, `error_type`). The generator holds no manual timing or event construction.
-* Trace hierarchy: `trace_id` groups the request pipeline, `span_id` identifies each operation, `parent_span_id` (optional in `Span.start()`) links child spans to their parent — prerequisites for reconstructing the call graph once agents and tools exist.
+* Tracing goes through a single `TraceContext` (`tracing.py`) that owns the span stack: `start_span(event_type, operation)` assigns the span id, links `parent_span_id` to the enclosing span, and timestamps the unit; `finish_span(span, status, model, prompt_version, tokens, costs, error_type)` records one `TelemetryEvent` and pops the span (LIFO enforced). The generator holds no manual timing or event construction, and `Span` is now an internal detail of `TraceContext`.
+* **The application owns request-level context.** `Application.generate_blueprint()` creates `RequestContext` and `TraceContext` once per request and passes the trace down; the generator consumes the trace it is given and never creates request identity itself.
+* Trace hierarchy: `trace_id` groups the request pipeline, `span_id` identifies each operation, `parent_span_id` links child spans to their parent — prerequisites for reconstructing the call graph once agents and tools exist.
+* `interfaces.py` imports `TraceContext` under `TYPE_CHECKING` only, because `tracing.py` imports `interfaces`; a runtime import would be circular.
 * Prompts are versioned files (`prompts/<name>/<version>/`); `config/prompts.yaml` selects the active version; the version is recorded in telemetry.
 * The interaction surface (`CLI`) is replaceable: the application speaks typed request/response contracts.
 * LLM config lives in `config/llm.yaml` (typed `LLMConfig`); secrets live in `.env` (typed `Settings`); pricing lives in `config/pricing.yaml` (typed `PricingConfig`).
 * **Never invent token counts or cost** — token fields stay `None` unless the provider reports usage; cost is computed only when input and output tokens are both present.
-* `RequestContext` is a frozen dataclass created at the application boundary; the `request_id` it owns is the one used everywhere (service → generator → telemetry → logs → events).
+* `RequestContext` is a frozen dataclass (`request_id` + `trace_id`) created at the application boundary; the `request_id` it owns is the one used everywhere (service → generator → telemetry → logs → events).
 * All application logging goes through `StructuredLogger` with `request_id`/`operation` extras; `RequestContextFilter` keeps non-application logs from crashing the formatter.
 * Free model in use: `nvidia/nemotron-3-ultra-550b-a55b:free` (confirmed structured output). Fallback candidate: `openai/gpt-4o-mini`. Both present in `config/pricing.yaml` with zero placeholder rates pending verification.
 
@@ -191,7 +197,7 @@ Python `>=3.12`.
 
 ```text
 uv run python app.py "Build an AI system that classifies corporate documents."
-uv run pytest        # 27 passed
+uv run pytest        # 31 passed
 ```
 
 ## Next Steps — From STEPS.md (Roadmap Step 7: Complete Single-Agent Blueprint)
@@ -228,9 +234,9 @@ Objectives:
 
 ## Immediate Follow-ups
 
-1. Expand `schemas.py` toward the full blueprint (Roadmap Step 7) → next release 0.0.40.
-2. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.39).
-3. Keep `docs/STEPS.md` and `docs/ROADMAP.md` status markers current (STEPS 1–40; Roadmap Step 40 Cost/FinOps ◐ — token usage + per-generation cost landed, cost aggregation and optimization pending).
+1. Expand `schemas.py` toward the full blueprint (Roadmap Step 7) → next release 0.0.41.
+2. Add `CHANGELOG.md` rows/entries as each version completes (current latest: 0.0.40).
+3. Keep `docs/STEPS.md` and `docs/ROADMAP.md` status markers current (STEPS 1–41; Roadmap Step 40 Cost/FinOps ◐ — token usage + per-generation cost landed, cost aggregation and optimization pending).
 4. Do not create agents/, tools/, api/ directories yet — they come later per plan.
 
 ## Todo
@@ -244,4 +250,5 @@ Objectives:
 - [x] Trace + span IDs (0.0.37, `RequestContext.trace_id` + `TelemetryEvent.trace_id`/`span_id`)
 - [x] Span helper (0.0.38, `tracing.Span` start/finish in the generator)
 - [x] Parent span linkage (0.0.39, optional `parent_span_id` on `Span.start`/`TelemetryEvent`)
+- [x] Application-owned trace (0.0.40, `Application` creates `TraceContext`; generator opens/closes spans through it)
 - [ ] Roadmap Step 11+ — per `docs/ROADMAP.md`

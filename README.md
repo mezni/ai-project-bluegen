@@ -912,16 +912,16 @@ ai-project-bluegen/
 │
 ├── app.py                  # launcher → cli.main()
 ├── cli.py                  # replaceable CLI presentation layer
-├── application.py          # Application + create_application (composition root, creates RequestContext)
+├── application.py          # Application + create_application (composition root, creates RequestContext + TraceContext)
 ├── container.py            # DependencyContainer (assembles infrastructure, never runs use cases)
 ├── context.py              # RequestContext (frozen request_id, trace_id, create_span_id)
-├── service.py              # ProjectBlueprintService (use case)
+├── service.py              # ProjectBlueprintService (use case; receives the TraceContext)
 ├── interfaces.py           # ProjectGenerator/StructuredLLM/PromptManager/TelemetryRecorder interfaces
-├── generator.py            # ProjectGenerator (validation, telemetry, prompts)
+├── generator.py            # ProjectGenerator (validation, telemetry, prompts; opens spans via the trace)
 ├── structured_llm.py       # LangChainStructuredLLM (ChatOpenAI + structured output)
 ├── prompt_manager.py       # PromptManager (versioned prompt files)
 ├── logger.py               # StructuredLogger (request_id/operation fields)
-├── tracing.py              # Span (start/finish) — emits TelemetryEvent with trace/span/parent ids
+├── tracing.py              # TraceContext (start_span/finish_span) — emits TelemetryEvent with trace/span/parent ids
 ├── schemas.py              # ProjectBlueprint + typed request/response models
 ├── exceptions.py
 ├── telemetry.py            # GenerationTelemetry, TelemetryEvent (trace/span), GenerationResult

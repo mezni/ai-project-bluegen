@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.40 | Application-owned trace | `Application` creates the `TraceContext` per request and injects it through service → generator; recorder is a required application dependency |
 | 0.0.39 | Parent span linkage | TelemetryEvent + Span carry parent_span_id; Span.start() accepts an optional parent for trace tree stitching |
 | 0.0.38 | Span helper | `Span` dataclass wraps span start/finish into a TelemetryEvent; generator uses it instead of manual event construction |
 | 0.0.37 | Trace + span IDs | RequestContext gains trace_id + create_span_id(), TelemetryEvent carries trace_id/span_id for per-operation tracing |
@@ -49,6 +50,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.40] - 2026-09-30
+
+### Application-Owned Trace
+
+**Feature Domain:** Request trace ownership
+
+**Key Objectives:**
+
+* The application owns the request-level trace: it creates `RequestContext` + `TraceContext` and passes it down, instead of each layer re-deriving context
+* The generator no longer creates or reaches for request identity — it consumes the `TraceContext` it is given
+* `TraceContext` (already present since 0.0.38) becomes the only way spans are opened and closed in the generation path
+
+### Added
+
+* `application.py` — `Application.__init__` takes a `telemetry_recorder: TelemetryRecorderInterface` alongside `blueprint_service`; `generate_blueprint()` builds `TraceContext(context=RequestContext.create(), recorder=self.telemetry_recorder)` and passes it to the service
+* `tests/test_application.py` — `CapturingGenerator` (a `ProjectGeneratorInterface` fake that stores the received trace) plus `test_application_creates_trace_context`, asserting the generator received a trace whose `context.request_id` equals the returned telemetry `request_id` and that the trace carries the application's recorder
+
+### Changed
+
+* `interfaces.py` — `ProjectGeneratorInterface.generate(project_idea, trace: TraceContext)` replaces the `context: RequestContext` parameter; `TraceContext` is imported under `TYPE_CHECKING` because `tracing.py` already imports `interfaces` (a runtime import would be circular)
+* `service.py` — `generate_blueprint(project_idea, trace: TraceContext)` receives and forwards the trace unchanged
+* `generator.py` — opens its span with `trace.start_span("generation", "project_blueprint_generation")` and closes it with `trace.finish_span(span, ...)` on both the success and error paths, replacing the direct `Span.start(context=..., recorder=...)` call; `request_id` is read once from `trace.context`; `latency_seconds` is captured into a local before `finish_span` (it is a live `perf_counter()` property and `finish_span` pops the span)
+* `application.py` — `create_application()` hoists `telemetry_recorder = container.create_telemetry_recorder()` above the `if generator is None` branch so the recorder exists on every path (previously it was only created when building a default generator, which would leave `Application` without one when a generator was injected); the recorder is also passed to `Application`
+* `tests/fakes.py` — `FakeProjectGenerator.generate()` takes a `TraceContext` and reads `request_id` from `trace.context`
+* `tests/test_service.py`, `tests/test_generator.py` — construct a `TraceContext` (with `InMemoryTelemetryRecorder`) instead of passing a bare `RequestContext` to `generate()`
+
+### Why
+
+`TraceContext` already existed but was unused: the generator still started spans by passing `context` and `recorder` separately, so the trace hierarchy had no single owner. Moving trace creation to the application boundary means request identity is decided exactly once, per request, and every layer below receives it rather than reconstructing it. It also completes the migration started in 0.0.38 — `Span.start()` is now an internal detail of `TraceContext`, and call sites open and close spans through the helper, which is the shape later tool calls and agent steps will reuse.
+
+Tests: 30 → 31 passing.
 
 ---
 

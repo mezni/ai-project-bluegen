@@ -6,13 +6,17 @@ from config import (
 from container import DependencyContainer
 from context import RequestContext
 from cost import ModelPricing
-from interfaces import ProjectGeneratorInterface
+from interfaces import (
+    ProjectGeneratorInterface,
+    TelemetryRecorderInterface,
+)
 from schemas import (
     GenerateBlueprintRequest,
     GenerateBlueprintResponse,
     GenerationTelemetryResponse,
 )
 from service import ProjectBlueprintService
+from tracing import TraceContext
 
 
 class Application:
@@ -20,9 +24,11 @@ class Application:
     def __init__(
         self,
         blueprint_service: ProjectBlueprintService,
+        telemetry_recorder: TelemetryRecorderInterface,
     ) -> None:
 
         self.blueprint_service = blueprint_service
+        self.telemetry_recorder = telemetry_recorder
 
     def generate_blueprint(
         self,
@@ -31,11 +37,16 @@ class Application:
 
         context = RequestContext.create()
 
+        trace = TraceContext(
+            context=context,
+            recorder=self.telemetry_recorder,
+        )
+
         result = (
             self.blueprint_service
             .generate_blueprint(
                 request.project_idea,
-                context,
+                trace,
             )
         )
 
@@ -76,6 +87,10 @@ def create_application(
             llm_config=llm_config,
         )
 
+    telemetry_recorder = (
+        container.create_telemetry_recorder()
+    )
+
     if generator is None:
 
         model_pricing_config = pricing_config.models[
@@ -101,10 +116,6 @@ def create_application(
             container.create_structured_llm()
         )
 
-        telemetry_recorder = (
-            container.create_telemetry_recorder()
-        )
-
         cost_calculator = (
             container.create_cost_calculator()
         )
@@ -121,4 +132,7 @@ def create_application(
         generator
     )
 
-    return Application(service)
+    return Application(
+        blueprint_service=service,
+        telemetry_recorder=telemetry_recorder,
+    )

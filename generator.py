@@ -1,6 +1,5 @@
 import logging
 
-from context import RequestContext
 from cost import CostCalculator, ModelPricing
 from exceptions import ProjectGenerationError
 from interfaces import (
@@ -14,7 +13,7 @@ from telemetry import (
     GenerationResult,
     GenerationTelemetry,
 )
-from tracing import Span
+from tracing import TraceContext
 
 
 class ProjectGenerator(ProjectGeneratorInterface):
@@ -41,7 +40,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
     def generate(
         self,
         project_idea: str,
-        context: RequestContext,
+        trace: TraceContext,
     ) -> GenerationResult:
 
         project_idea = project_idea.strip()
@@ -51,9 +50,11 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 "Project idea cannot be empty."
             )
 
+        request_id = trace.context.request_id
+
         self.logger.info(
             "Starting blueprint generation",
-            request_id=context.request_id,
+            request_id=request_id,
             operation="generate_blueprint",
         )
 
@@ -70,17 +71,15 @@ class ProjectGenerator(ProjectGeneratorInterface):
             ),
         ]
 
-        span = Span.start(
-            context=context,
-            recorder=self.telemetry_recorder,
-            event_type="generation",
-            operation="project_blueprint_generation",
+        span = trace.start_span(
+            "generation",
+            "project_blueprint_generation",
         )
 
         try:
             self.logger.info(
                 "Calling structured LLM",
-                request_id=context.request_id,
+                request_id=request_id,
                 operation="llm_generation",
             )
 
@@ -88,21 +87,24 @@ class ProjectGenerator(ProjectGeneratorInterface):
 
             self.logger.info(
                 "Blueprint generation completed",
-                request_id=context.request_id,
+                request_id=request_id,
                 operation="generate_blueprint",
             )
 
         except Exception as exc:
-            span.finish(
+            trace.finish_span(
+                span,
                 status="error",
                 model=self.llm.model_name,
-                prompt_version=self.prompt_manager.get_version(),
+                prompt_version=(
+                    self.prompt_manager.get_version()
+                ),
                 error_type=type(exc).__name__,
             )
 
             self.logger.exception(
                 "Blueprint generation failed",
-                request_id=context.request_id,
+                request_id=request_id,
                 operation="generate_blueprint",
             )
 
@@ -110,11 +112,13 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 "Failed to generate the project blueprint."
             ) from exc
 
+        latency_seconds = span.latency_seconds
+
         telemetry = GenerationTelemetry(
-            request_id=context.request_id,
+            request_id=request_id,
             model=self.llm.model_name,
             prompt_version=self.prompt_manager.get_version(),
-            latency_seconds=span.latency_seconds,
+            latency_seconds=latency_seconds,
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             total_tokens=usage.total_tokens,
@@ -132,7 +136,8 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 output_tokens=usage.output_tokens,
             )
 
-        span.finish(
+        trace.finish_span(
+            span,
             status="success",
             model=self.llm.model_name,
             prompt_version=self.prompt_manager.get_version(),

@@ -46,17 +46,19 @@ Each row records a completed increment with its one-sentence summary, the archit
 | 39 | Span helper | Add a `Span` dataclass in `tracing.py` (`start`/`finish`) that emits one `TelemetryEvent`; the generator records success and error events through the span instead of manual construction. | **Declarative tracing**: the span owns span-id assignment, timing, and event emission, so call sites don't hand-construct `TelemetryEvent` or call `perf_counter` — the same helper later times tool calls and agent steps uniformly. |
 | 40 | Parent span linkage | Add `parent_span_id` to `TelemetryEvent` and `Span`; `Span.start()` accepts an optional parent so child spans link to their parent. | **Trace trees, not flat lists**: knowing the parent span lets a collector reconstruct the call graph (agent → generation, orchestrator → tool call); nesting stays declarative on the helper instead of hand-wired per call site. |
 
-Legend: completed steps 1–40.
+| 41 | Application-owned trace | `Application` creates the `RequestContext` + `TraceContext` per request and injects it through service → generator; `ProjectGeneratorInterface.generate(project_idea, trace)` takes a trace instead of a context. | **Request identity is decided once, at the boundary**: the application is the only place that creates request-level context, and every layer below receives the `TraceContext` instead of re-deriving one — so the trace has exactly one owner. **`TraceContext` over bare `Span` calls**: `start_span`/`finish_span` own the span stack (auto parent-linking, LIFO enforcement, event emission), leaving `Span.start(...)` as an internal detail; the same shape is reusable by tool calls and agent steps later. **Recorder as an application dependency**: `Application` needs the recorder to build the trace, so `create_application` hoists its construction above the optional-generator branch — otherwise an injected generator would leave the application without a recorder. **Cycle avoidance**: `interfaces.py` imports `TraceContext` under `TYPE_CHECKING` only, since `tracing.py` already imports `interfaces`. |
 
-## Architecture after Step 40
+Legend: completed steps 1–41.
+
+## Architecture after Step 41
 
 ```text
 app.py (launcher)
    → CLI (cli.py — replaceable presentation layer, configure_logging at entry)
-      → Application (application.py — creates RequestContext, typed request/response)
-         → ProjectBlueprintService (service.py)
-            → ProjectGeneratorInterface (interfaces.py, ABC)
-               → ProjectGenerator (generator.py)
+      → Application (application.py — creates RequestContext + TraceContext, typed request/response)
+         → ProjectBlueprintService (service.py — receives the trace, forwards it)
+            → ProjectGeneratorInterface (interfaces.py, ABC — generate(project_idea, trace))
+               → ProjectGenerator (generator.py — opens/closes spans via the trace)
                   ├── PromptManagerInterface (interfaces.py, ABC)
                   │   ├── PromptManager (prompt_manager.py) → prompts/<name>/<version>/*.txt
                   │   └── FakePromptManager (tests/fakes.py)
@@ -70,7 +72,8 @@ app.py (launcher)
    object graph assembled by DependencyContainer (container.py) via create_application (application.py)
    structured logging: StructuredLogger (logger.py) + RequestContextFilter (logging_config.py)
    observability events: TelemetryEvent (telemetry.py) — event_type, usage (tokens), cost
-   tracing: Span (tracing.py) — start/finish emits a TelemetryEvent with trace_id, span_id, parent_span_id
+   tracing: TraceContext (tracing.py) — owns the span stack; start_span/finish_span emit a
+            TelemetryEvent with trace_id, span_id, parent_span_id (Span is an internal detail)
 ```
 
-**27 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_context.py`, `test_generator.py`, `test_telemetry.py`, `test_telemetry_recorder.py`, `test_cost.py`, `test_tracing.py`).
+**31 tests passing** (`tests/test_schemas.py`, `test_config.py`, `test_settings.py`, `test_service.py`, `test_application.py`, `test_prompt_manager.py`, `test_context.py`, `test_generator.py`, `test_telemetry.py`, `test_telemetry_recorder.py`, `test_cost.py`, `test_tracing.py`).
