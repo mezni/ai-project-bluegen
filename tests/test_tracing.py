@@ -1,7 +1,7 @@
 import pytest
 
 from context import RequestContext
-from operations import Operation
+from operations import Operation, Operations
 from telemetry_recorder import InMemoryTelemetryRecorder
 from tracing import Span, TraceContext
 
@@ -211,3 +211,56 @@ def test_trace_context_records_nested_events():
 
     assert parent_event.trace_id == child_event.trace_id
     assert parent_event.span_id == child_event.parent_span_id
+
+
+def test_span_records_attributes():
+    context = RequestContext.create()
+    recorder = InMemoryTelemetryRecorder()
+
+    trace = TraceContext(
+        context=context,
+        recorder=recorder,
+    )
+
+    span = trace.start_span(
+        Operations.LLM_PROJECT_BLUEPRINT_GENERATION,
+    )
+
+    trace.finish_span(
+        span,
+        status="success",
+        attributes={
+            "provider": "openrouter",
+            "temperature": 0.2,
+        },
+    )
+
+    event = recorder.events[0]
+
+    assert event.attributes == {
+        "provider": "openrouter",
+        "temperature": 0.2,
+    }
+
+
+def test_span_attributes_are_optional():
+    context = RequestContext.create()
+    recorder = InMemoryTelemetryRecorder()
+
+    trace = TraceContext(
+        context=context,
+        recorder=recorder,
+    )
+
+    span = trace.start_span(
+        Operations.LLM_PROJECT_BLUEPRINT_GENERATION,
+    )
+
+    trace.finish_span(
+        span,
+        status="success",
+    )
+
+    event = recorder.events[0]
+
+    assert event.attributes is None

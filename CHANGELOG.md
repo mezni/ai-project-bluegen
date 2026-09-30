@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.42 | Span attributes | `TelemetryEvent` carries an open `attributes` map; spans can record operation-specific detail without widening the event schema |
 | 0.0.41 | Operation vocabulary | `Operation` value object replaces the `event_type`/`operation` string pair; `Operations` catalogue centralizes the observability vocabulary |
 | 0.0.40 | Application-owned trace | `Application` creates the `TraceContext` per request and injects it through service → generator; recorder is a required application dependency |
 | 0.0.39 | Parent span linkage | TelemetryEvent + Span carry parent_span_id; Span.start() accepts an optional parent for trace tree stitching |
@@ -51,6 +52,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.42] - 2026-09-30
+
+### Span Attributes
+
+**Feature Domain:** Observability vocabulary
+
+**Key Objectives:**
+
+* Give spans a way to record operation-specific detail without adding a new field to `TelemetryEvent` for every new kind of information
+* Keep the event schema stable while `Operations` grows new scopes (agent, tool, retrieval, database, evaluation)
+* Prove that `attributes` is genuinely optional — most events carry none
+
+### Added
+
+* `telemetry.py` — `TelemetryEvent.attributes: dict[str, Any] | None = None`, appended last so every existing positional construction and default is unaffected
+* `tracing.py` — `Span.finish(..., attributes=None)` and `TraceContext.finish_span(..., attributes=None)` both accept and forward the map to the recorded event
+* `generator.py` — the LLM generation span records `attributes={"provider": "openrouter"}` on success
+* `tests/test_tracing.py` — `test_span_records_attributes` (arbitrary mixed-type values survive the round trip) and `test_span_attributes_are_optional` (an event finished without attributes has `attributes is None`)
+
+### Why
+
+Every new observability fact would otherwise mean widening `TelemetryEvent`: `provider` today, `retrieval_score` tomorrow, `tool_name` the day after. A generic map lets a span say something the fixed schema does not anticipate, so new operations can be observed without an event-shape change per fact. The typed fields stay for the data that is genuinely universal across operations (`status`, `latency_seconds`, tokens, cost) — the schema is not being abandoned, just no longer required to enumerate everything.
+
+Known limitation: `attributes` is a `dict` on a `frozen=True` dataclass, so `frozen` does not make the contents immutable — a caller can mutate the dict after the event is recorded. If attributes become data that is queried or asserted on, copy the map at record time to restore the guarantee. Left as-is for now since nothing reads it yet.
+
+The provider is hardcoded in the generator; it should come from `LLMConfig` once the adapter exposes it.
+
+Tests: 36 → 38 passing.
 
 ---
 

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import time
+from typing import Any
 
 from context import RequestContext
 from operations import Operation
@@ -50,6 +51,7 @@ class Span:
         output_cost: float | None = None,
         total_cost: float | None = None,
         error_type: str | None = None,
+        attributes: dict[str, Any] | None = None,
     ) -> None:
         latency = self.latency_seconds
 
@@ -71,6 +73,7 @@ class Span:
             output_cost=output_cost,
             total_cost=total_cost,
             error_type=error_type,
+            attributes=attributes,
         )
 
         self.recorder.record(event)
@@ -117,6 +120,7 @@ class TraceContext:
         output_cost: float | None = None,
         total_cost: float | None = None,
         error_type: str | None = None,
+        attributes: dict[str, Any] | None = None,
     ) -> None:
         if not self._span_stack:
             raise RuntimeError("No active spans.")
@@ -137,6 +141,7 @@ class TraceContext:
             output_cost=output_cost,
             total_cost=total_cost,
             error_type=error_type,
+            attributes=attributes,
         )
 
         self._span_stack.pop()

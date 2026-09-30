@@ -159,6 +159,9 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 if cost is not None
                 else None
             ),
+            attributes={
+                "provider": "openrouter",
+            },
         )
 
         return GenerationResult(
