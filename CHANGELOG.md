@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.41 | Operation vocabulary | `Operation` value object replaces the `event_type`/`operation` string pair; `Operations` catalogue centralizes the observability vocabulary |
 | 0.0.40 | Application-owned trace | `Application` creates the `TraceContext` per request and injects it through service → generator; recorder is a required application dependency |
 | 0.0.39 | Parent span linkage | TelemetryEvent + Span carry parent_span_id; Span.start() accepts an optional parent for trace tree stitching |
 | 0.0.38 | Span helper | `Span` dataclass wraps span start/finish into a TelemetryEvent; generator uses it instead of manual event construction |
@@ -50,6 +51,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.41] - 2026-09-30
+
+### Operation Vocabulary
+
+**Feature Domain:** Observability vocabulary
+
+**Key Objectives:**
+
+* Replace the loose `event_type` / `operation` string pair carried by `Span` with a single validated `Operation` value object
+* Centralize the observability vocabulary as named constants, collected in an `Operations` catalogue so callers reference one import
+* Keep the telemetry boundary unchanged — `TelemetryEvent` still receives plain strings
+
+### Added
+
+* `operations.py` — frozen `Operation` dataclass (`event_type`, `name`) that rejects empty/whitespace-only values in `__post_init__`
+* `operations.py` — operation constants for application, service, and llm scopes plus forward-looking `agent`, `tool`, `retrieval`, `database`, and `evaluation` scopes
+* `operations.py` — `Operations` catalogue class exposing all constants as attributes
+* `tests/test_operations.py` — `test_operation_requires_event_type`, `test_operation_requires_name`, `test_operation_is_immutable`, `test_operation_catalogue_contains_llm_operation`, `test_operation_catalogue_contains_agent_operation`
+
+### Changed
+
+* `tracing.py` — `Span` carries one `operation: Operation` field in place of the separate `event_type`/`operation` strings; `Span.start()` and `TraceContext.start_span()` both take an `Operation`; `Span.finish()` unpacks `operation.event_type` / `operation.name` into the `TelemetryEvent`, so the telemetry layer is unaffected
+* `generator.py` — imports `Operations` and opens its span with `Operations.LLM_PROJECT_BLUEPRINT_GENERATION`
+* `tests/test_tracing.py` — span/trace construction passes `Operation` values
+
+### Why
+
+Two strings travelling together are a pair that can disagree, and neither is checked at construction. Making them one immutable object means `event_type` and `name` are validated once, at creation, and travel as a unit. Naming the constants turns the observability vocabulary into a single importable surface: as agents, tools, retrieval, and evaluation arrive, the set of operations is enumerable in one place rather than scattered across call sites as string literals.
+
+Note: the generator's `event_type` for this operation is `"llm"` (previously `"generation"`). `test_telemetry.py` still constructs `"generation"` and `"tool_call"` events directly, so both vocabularies currently appear in the suite.
+
+Tests: 34 → 36 passing.
 
 ---
 

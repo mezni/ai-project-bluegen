@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import time
 
 from context import RequestContext
+from operations import Operation
 from telemetry import TelemetryEvent
 from interfaces import TelemetryRecorderInterface
 
@@ -10,8 +11,7 @@ from interfaces import TelemetryRecorderInterface
 class Span:
     context: RequestContext
     recorder: TelemetryRecorderInterface
-    event_type: str
-    operation: str
+    operation: Operation
     span_id: str
     parent_span_id: str | None
     start_time: float
@@ -21,14 +21,12 @@ class Span:
         cls,
         context: RequestContext,
         recorder: TelemetryRecorderInterface,
-        event_type: str,
-        operation: str,
+        operation: Operation,
         parent_span_id: str | None = None,
     ) -> "Span":
         return cls(
             context=context,
             recorder=recorder,
-            event_type=event_type,
             operation=operation,
             span_id=context.create_span_id(),
             parent_span_id=parent_span_id,
@@ -60,8 +58,8 @@ class Span:
             trace_id=self.context.trace_id,
             span_id=self.span_id,
             parent_span_id=self.parent_span_id,
-            event_type=self.event_type,
-            operation=self.operation,
+            event_type=self.operation.event_type,
+            operation=self.operation.name,
             status=status,
             latency_seconds=latency,
             model=model,
@@ -86,8 +84,7 @@ class TraceContext:
 
     def start_span(
         self,
-        event_type: str,
-        operation: str,
+        operation: Operation,
     ) -> Span:
         parent_span_id = (
             self._span_stack[-1].span_id
@@ -98,7 +95,6 @@ class TraceContext:
         span = Span.start(
             context=self.context,
             recorder=self.recorder,
-            event_type=event_type,
             operation=operation,
             parent_span_id=parent_span_id,
         )

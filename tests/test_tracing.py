@@ -1,6 +1,7 @@
 import pytest
 
 from context import RequestContext
+from operations import Operation
 from telemetry_recorder import InMemoryTelemetryRecorder
 from tracing import Span, TraceContext
 
@@ -12,8 +13,10 @@ def test_span_records_success_event():
     span = Span.start(
         context=context,
         recorder=recorder,
-        event_type="generation",
-        operation="test_operation",
+        operation=Operation(
+            event_type="llm",
+            name="test_operation",
+        ),
     )
 
     span.finish(
@@ -28,7 +31,7 @@ def test_span_records_success_event():
     assert event.request_id == context.request_id
     assert event.trace_id == context.trace_id
     assert event.span_id
-    assert event.event_type == "generation"
+    assert event.event_type == "llm"
     assert event.operation == "test_operation"
     assert event.status == "success"
     assert event.model == "fake-model"
@@ -42,15 +45,19 @@ def test_span_records_parent_span():
     parent = Span.start(
         context=context,
         recorder=recorder,
-        event_type="agent",
-        operation="agent_execution",
+        operation=Operation(
+            event_type="agent",
+            name="agent_execution",
+        ),
     )
 
     child = Span.start(
         context=context,
         recorder=recorder,
-        event_type="generation",
-        operation="llm_generation",
+        operation=Operation(
+            event_type="llm",
+            name="llm_generation",
+        ),
         parent_span_id=parent.span_id,
     )
 
@@ -74,8 +81,10 @@ def test_span_records_error_event():
     span = Span.start(
         context=context,
         recorder=recorder,
-        event_type="generation",
-        operation="test_operation",
+        operation=Operation(
+            event_type="llm",
+            name="test_operation",
+        ),
     )
 
     span.finish(
@@ -100,13 +109,17 @@ def test_trace_context_creates_parent_child_relationships():
     )
 
     parent = trace.start_span(
-        "agent",
-        "agent_execution",
+        Operation(
+            event_type="agent",
+            name="agent_execution",
+        )
     )
 
     child = trace.start_span(
-        "llm",
-        "llm_generation",
+        Operation(
+            event_type="llm",
+            name="llm_generation",
+        )
     )
 
     assert parent.parent_span_id is None
@@ -125,13 +138,17 @@ def test_trace_context_finishes_spans_in_lifo_order():
     )
 
     parent = trace.start_span(
-        "agent",
-        "agent_execution",
+        Operation(
+            event_type="agent",
+            name="agent_execution",
+        )
     )
 
     child = trace.start_span(
-        "llm",
-        "llm_generation",
+        Operation(
+            event_type="llm",
+            name="llm_generation",
+        )
     )
 
     with pytest.raises(RuntimeError, match="LIFO"):
@@ -163,13 +180,17 @@ def test_trace_context_records_nested_events():
     )
 
     parent = trace.start_span(
-        "agent",
-        "agent_execution",
+        Operation(
+            event_type="agent",
+            name="agent_execution",
+        )
     )
 
     child = trace.start_span(
-        "llm",
-        "llm_generation",
+        Operation(
+            event_type="llm",
+            name="llm_generation",
+        )
     )
 
     trace.finish_span(

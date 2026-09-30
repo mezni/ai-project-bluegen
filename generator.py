@@ -9,6 +9,7 @@ from interfaces import (
     TelemetryRecorderInterface,
 )
 from logger import StructuredLogger
+from operations import Operations
 from telemetry import (
     GenerationResult,
     GenerationTelemetry,
@@ -72,8 +73,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
         ]
 
         span = trace.start_span(
-            "generation",
-            "project_blueprint_generation",
+            Operations.LLM_PROJECT_BLUEPRINT_GENERATION
         )
 
         try:
