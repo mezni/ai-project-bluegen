@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.47 | Retry decision | `RetryPolicy.should_retry()` returns `RetryDecision` carrying `retry`, `next_attempt`, and a human-readable `reason` |
 | 0.0.46 | Retry policy | `RetryPolicy` makes the retry decision deterministic — `should_retry(failure, attempt)` consults `Failure.retryable` and the attempt budget |
 | 0.0.45 | Failure object | `Failure` bundles error type, category, message, and retryability into one value object; span finish APIs take `failure` instead of loose error arguments |
 | 0.0.44 | Error classification | `ErrorCategory` separates "what kind of failure" from `error_type` ("which exception"); `TelemetryEvent` carries both |
@@ -56,6 +57,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.47] - 2026-09-30
+
+### Retry Decision
+
+**Feature Domain:** Recovery
+
+**Key Objectives:**
+
+* Rename `RetryPolicy.should_retry()` → `RetryPolicy.decide()` to reflect that it returns a decision, not a bare boolean
+* Return a `RetryDecision` value object carrying `retry`, `next_attempt`, and a human-readable `reason` instead of a bare `bool`
+* Make the decision self-describing, so a caller can log or surface *why* no retry happened
+
+### Added
+
+* `retry.py` — frozen `RetryDecision` dataclass (`retry: bool`, `next_attempt: int | None`, `reason: str`) enforcing three invariants in `__post_init__`: `reason` is non-empty, `next_attempt` is required when `retry is True`, and `next_attempt` must be `None` when `retry is False`
+* `retry.py` — `RetryPolicy.decide(failure, attempt)` returns a `RetryDecision` with reason `"Failure is not retryable."`, `"Maximum retry attempts reached."`, or `"Failure is retryable and attempts remain."`
+* `tests/test_retry.py` — rewritten around `create_retryable_failure()` / `create_non_retryable_failure()` helpers; 10 tests covering the three decision branches, `attempt >= 1` validation, all three `RetryDecision` invariants, and immutability
+
+### Changed
+
+* `retry.py` — `RetryPolicy.should_retry(failure, attempt) -> bool` replaced by `decide(failure, attempt) -> RetryDecision`. This is a rename, not a new capability: the same two conditions (retryable + attempts remain) decide the outcome, and the exhausted-budget branch moved from `attempt < max_attempts` to `attempt >= max_attempts` — equivalent for valid input, and now the documented way the boundary is expressed.
+
+### Why
+
+A bare `False` cannot distinguish "the caller sent invalid input", "this failure is permanent", and "we ran out of attempts". All three end retries, but only the last two are worth retrying later after human action, and they mean different things in a log. `RetryDecision.reason` makes the branch explicit at zero cost, and `next_attempt` hands the retry loop its next counter value instead of making it re-derive `attempt + 1`.
+
+The `RetryDecision` invariants turn that contract into something the type system enforces: a decision claiming `retry=True` with no `next_attempt`, or `retry=False` while claiming an attempt, cannot be constructed. That is the same "validate once, at construction" discipline as `Operation` and `SpanStatus`.
+
+Scope note: `RetryPolicy` is still not wired into the generator — nothing calls `decide()`, and there is no backoff or delay modelling (`max_attempts` bounds count only). Ahead of the recovery workflow, Roadmap Step 22.
+
+Tests: 58 → 62 passing.
 
 ---
 
