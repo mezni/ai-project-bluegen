@@ -1,6 +1,7 @@
 import logging
 
 from cost import CostCalculator, ModelPricing
+from errors import ErrorCategories
 from exceptions import ProjectGenerationError
 from interfaces import (
     ProjectGeneratorInterface,
@@ -101,6 +102,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
                     self.prompt_manager.get_version()
                 ),
                 error_type=type(exc).__name__,
+                error_category=ErrorCategories.LLM,
             )
 
             self.logger.exception(

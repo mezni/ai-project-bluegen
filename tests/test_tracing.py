@@ -1,6 +1,7 @@
 import pytest
 
 from context import RequestContext
+from errors import ErrorCategories
 from operations import Operation, Operations
 from span_status import SpanStatuses
 from telemetry_recorder import InMemoryTelemetryRecorder
@@ -265,3 +266,30 @@ def test_span_attributes_are_optional():
     event = recorder.events[0]
 
     assert event.attributes is None
+
+
+def test_span_records_error_category():
+    context = RequestContext.create()
+    recorder = InMemoryTelemetryRecorder()
+
+    trace = TraceContext(
+        context=context,
+        recorder=recorder,
+    )
+
+    span = trace.start_span(
+        Operations.LLM_PROJECT_BLUEPRINT_GENERATION,
+    )
+
+    trace.finish_span(
+        span,
+        status=SpanStatuses.ERROR,
+        error_type="ProviderError",
+        error_category=ErrorCategories.LLM,
+    )
+
+    event = recorder.events[0]
+
+    assert event.status == "error"
+    assert event.error_type == "ProviderError"
+    assert event.error_category == "llm"

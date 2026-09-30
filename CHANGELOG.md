@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.44 | Error classification | `ErrorCategory` separates "what kind of failure" from `error_type` ("which exception"); `TelemetryEvent` carries both |
 | 0.0.43 | Span status vocabulary | `SpanStatus` value object replaces the raw `status` string at span boundaries; `SpanStatuses` catalogue mirrors `Operations` |
 | 0.0.42 | Span attributes | `TelemetryEvent` carries an open `attributes` map; spans can record operation-specific detail without widening the event schema |
 | 0.0.41 | Operation vocabulary | `Operation` value object replaces the `event_type`/`operation` string pair; `Operations` catalogue centralizes the observability vocabulary |
@@ -53,6 +54,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 | 0.0.3 | Pydantic Blueprint schema | Pydantic, type safety, validation, structured data |
 | 0.0.2 | Initial project structure | Starter file skeleton: app, generator, schemas, prompts, env example |
 | 0.0.1 | Project foundation | Python project structure, uv, virtual environments, .env, Git |
+
+---
+
+## [0.0.44] - 2026-09-30
+
+### Error Classification
+
+**Feature Domain:** Observability vocabulary
+
+**Key Objectives:**
+
+* Record *what kind* of failure occurred separately from *which exception* was raised
+* Give failure handling a controlled vocabulary (`validation` / `configuration` / `llm` / `timeout` / `internal`) that metrics and alerts can group on
+* Follow the same value-object + catalogue pattern as `Operation` and `SpanStatus`
+
+### Added
+
+* `errors.py` — frozen `ErrorCategory` dataclass wrapping a `value` string, rejecting empty/whitespace-only values, plus an `ErrorCategories` catalogue (`VALIDATION`, `CONFIGURATION`, `LLM`, `TIMEOUT`, `INTERNAL`)
+* `telemetry.py` — `TelemetryEvent.error_category: str | None = None`, placed directly after `error_type`
+* `tracing.py` — `Span.finish(error_category: ErrorCategory | None = None)` and `TraceContext.finish_span(...)` accept and forward it; `Span.finish()` converts with `error_category.value if error_category is not None else None`
+* `generator.py` — the generation span's error path records `error_category=ErrorCategories.LLM`
+* `tests/test_errors.py` — `test_error_category_requires_value`, `test_error_categories`, `test_error_category_is_immutable`
+* `tests/test_tracing.py` — `test_span_records_error_category` asserts the recorded event carries `status == "error"`, `error_type == "ProviderError"`, `error_category == "llm"`
+
+### Why
+
+`error_type` alone is ambiguous. `ValueError` could mean invalid user input, a malformed config file, or an internal programming mistake — all indistinguishable downstream. Pairing `error_category` (a controlled vocabulary) with `error_type` (the concrete exception) answers both *what kind of failure* and *which exception*, which is the distinction a metrics query needs: validation failures, LLM failures, and system failures are different signals with different owners and different responses.
+
+Note: the generator's empty-`project_idea` guard still raises `ValueError` without a recorded event — it fires before any span is opened. Classifying it as `ErrorCategories.VALIDATION` will need the validation boundary to open its own span first; deferred until validation moves into its own layer (Roadmap Step 9).
+
+`errors.py` (vocabulary) and `exceptions.py` (`ProjectGenerationError` hierarchy) are deliberately separate concerns: one classifies, the other structures.
+
+Tests: 42 → 46 passing.
+
+---
+
+## [0.0.43] - 2026-09-30
+
+### Span Status Vocabulary
+
+**Feature Domain:** Observability vocabulary
+
+**Key Objectives:**
+
+* Replace the raw `status` string at span boundaries with a validated `SpanStatus` value object, completing the set begun with `Operation` (0.0.41)
+* Keep `TelemetryEvent.status` a plain `str` so the recorded/external representation is unchanged
+* Give the status vocabulary the same catalogue treatment as `Operations`
+
+### Added
+
+* `span_status.py` — frozen `SpanStatus` dataclass wrapping a `value` string, rejecting empty/whitespace-only values; `SUCCESS` / `ERROR` constants and a `SpanStatuses` catalogue
+* `tests/test_span_status.py` — `test_span_status_requires_value`, `test_success_status`, `test_error_status`, `test_span_status_is_immutable`
+
+### Changed
+
+* `tracing.py` — `Span.finish(status: SpanStatus)` and `TraceContext.finish_span(status: SpanStatus)` now take a `SpanStatus`; `Span.finish()` converts at the boundary with `status=status.value` when building the `TelemetryEvent`
+* `generator.py` — success and error paths pass `SpanStatuses.SUCCESS` / `SpanStatuses.ERROR`
+* `tests/test_tracing.py` — span/trace finish calls use `SpanStatuses.*`; assertions still expect the string `"success"` / `"error"` on the recorded event
+
+### Why
+
+`status` was the last unchecked string in the tracing layer — `"sucess"` would have been accepted silently and only surfaced when reading dashboards. Making it a value object means the two legal states are named, validated, and discoverable in one place, matching how `Operation` already works.
+
+The domain/representation split is deliberate: `SpanStatus` exists for the tracing layer's type safety, while `TelemetryEvent.status` stays `str` because that is the value that gets stored, exported, or sent to an observability backend. `status.value` is the single conversion point, and `test_tracing.py` asserting the string form is what proves the boundary holds.
+
+Tests: 38 → 42 passing.
 
 ---
 
