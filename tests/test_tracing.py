@@ -2,6 +2,7 @@ import pytest
 
 from context import RequestContext
 from errors import ErrorCategories
+from failure import Failure
 from operations import Operation, Operations
 from span_status import SpanStatuses
 from telemetry_recorder import InMemoryTelemetryRecorder
@@ -91,7 +92,11 @@ def test_span_records_error_event():
 
     span.finish(
         status=SpanStatuses.ERROR,
-        error_type="TimeoutError",
+        failure=Failure(
+            error_type="TimeoutError",
+            category=ErrorCategories.TIMEOUT,
+            message="LLM request timed out.",
+        ),
     )
 
     event = recorder.events[0]
@@ -284,8 +289,44 @@ def test_span_records_error_category():
     trace.finish_span(
         span,
         status=SpanStatuses.ERROR,
+        failure=Failure(
+            error_type="ProviderError",
+            category=ErrorCategories.LLM,
+            message="LLM generation failed.",
+        ),
+    )
+
+    event = recorder.events[0]
+
+    assert event.status == "error"
+    assert event.error_type == "ProviderError"
+    assert event.error_category == "llm"
+
+
+def test_span_records_failure():
+    context = RequestContext.create()
+    recorder = InMemoryTelemetryRecorder()
+
+    trace = TraceContext(
+        context=context,
+        recorder=recorder,
+    )
+
+    span = trace.start_span(
+        Operations.LLM_PROJECT_BLUEPRINT_GENERATION,
+    )
+
+    failure = Failure(
         error_type="ProviderError",
-        error_category=ErrorCategories.LLM,
+        category=ErrorCategories.LLM,
+        message="LLM generation failed.",
+        retryable=True,
+    )
+
+    trace.finish_span(
+        span,
+        status=SpanStatuses.ERROR,
+        failure=failure,
     )
 
     event = recorder.events[0]

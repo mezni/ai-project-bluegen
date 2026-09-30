@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 | Version | Feature Domain | Key Objectives |
 | --- | --- | --- |
+| 0.0.45 | Failure object | `Failure` bundles error type, category, message, and retryability into one value object; span finish APIs take `failure` instead of loose error arguments |
 | 0.0.44 | Error classification | `ErrorCategory` separates "what kind of failure" from `error_type` ("which exception"); `TelemetryEvent` carries both |
 | 0.0.43 | Span status vocabulary | `SpanStatus` value object replaces the raw `status` string at span boundaries; `SpanStatuses` catalogue mirrors `Operations` |
 | 0.0.42 | Span attributes | `TelemetryEvent` carries an open `attributes` map; spans can record operation-specific detail without widening the event schema |

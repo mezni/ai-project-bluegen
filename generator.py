@@ -3,6 +3,7 @@ import logging
 from cost import CostCalculator, ModelPricing
 from errors import ErrorCategories
 from exceptions import ProjectGenerationError
+from failure import Failure
 from interfaces import (
     ProjectGeneratorInterface,
     PromptManagerInterface,
@@ -94,6 +95,13 @@ class ProjectGenerator(ProjectGeneratorInterface):
             )
 
         except Exception as exc:
+            failure = Failure(
+                error_type=type(exc).__name__,
+                category=ErrorCategories.LLM,
+                message="LLM generation failed.",
+                retryable=True,
+            )
+
             trace.finish_span(
                 span,
                 status=SpanStatuses.ERROR,
@@ -101,8 +109,7 @@ class ProjectGenerator(ProjectGeneratorInterface):
                 prompt_version=(
                     self.prompt_manager.get_version()
                 ),
-                error_type=type(exc).__name__,
-                error_category=ErrorCategories.LLM,
+                failure=failure,
             )
 
             self.logger.exception(

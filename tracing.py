@@ -3,7 +3,7 @@ import time
 from typing import Any
 
 from context import RequestContext
-from errors import ErrorCategory
+from failure import Failure
 from operations import Operation
 from span_status import SpanStatus
 from telemetry import TelemetryEvent
@@ -52,8 +52,7 @@ class Span:
         input_cost: float | None = None,
         output_cost: float | None = None,
         total_cost: float | None = None,
-        error_type: str | None = None,
-        error_category: ErrorCategory | None = None,
+        failure: Failure | None = None,
         attributes: dict[str, Any] | None = None,
     ) -> None:
         latency = self.latency_seconds
@@ -75,10 +74,14 @@ class Span:
             input_cost=input_cost,
             output_cost=output_cost,
             total_cost=total_cost,
-            error_type=error_type,
+            error_type=(
+                failure.error_type
+                if failure is not None
+                else None
+            ),
             error_category=(
-                error_category.value
-                if error_category is not None
+                failure.category.value
+                if failure is not None
                 else None
             ),
             attributes=attributes,
@@ -127,8 +130,7 @@ class TraceContext:
         input_cost: float | None = None,
         output_cost: float | None = None,
         total_cost: float | None = None,
-        error_type: str | None = None,
-        error_category: ErrorCategory | None = None,
+        failure: Failure | None = None,
         attributes: dict[str, Any] | None = None,
     ) -> None:
         if not self._span_stack:
@@ -149,8 +151,7 @@ class TraceContext:
             input_cost=input_cost,
             output_cost=output_cost,
             total_cost=total_cost,
-            error_type=error_type,
-            error_category=error_category,
+            failure=failure,
             attributes=attributes,
         )
 
